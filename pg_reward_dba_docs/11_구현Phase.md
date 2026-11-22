@@ -2,7 +2,7 @@
 
 ## 1. Phase 총괄
 
-**구현 기록:** P0~P1 실행 기반, P2a/P2b 핵심 구현과 수용 실험, P3 장애 보상·DDL Lock·migration 복구·구버전 API 교차 실행, P4 대량 검색·부분 인덱스·쓰기 비용·동시성 DDL 실습을 기록했다. 보상 요청 재전송은 사용자가 직접 확인할 항목으로 남겼다. 전체 TC-001~016과 P1 화면 Gate는 [검증 계획](10_검증및실험계획.md)에서 이어간다. 현재 단계는 [Phase 안내서](implementation/phase-guide.md), 실행 과정은 [구현 기록](implementation/exec.md)에서 확인한다.
+**구현 기록:** P0~P1 실행 기반, P2a/P2b 핵심 구현과 수용 실험, P3 장애 보상·DDL Lock·migration 복구·구버전 API 교차 실행, P4 대량 검색·부분 인덱스·쓰기 비용·동시성 DDL, P5 Lock Wait 진단과 복구를 기록했다. 보상 요청 재전송은 사용자가 직접 확인할 항목으로 남겼다. 전체 TC-001~016과 P1 화면 Gate는 [검증 계획](10_검증및실험계획.md)에서 이어간다. 현재 단계는 [Phase 안내서](implementation/phase-guide.md), 실행 과정은 [구현 기록](implementation/exec.md)에서 확인한다.
 
 | Phase | 목적 | 주요 구현 | 종료 조건 |
 |---|---|---|---|
@@ -11,10 +11,11 @@
 | **P2** | DB 핵심·배치·정합성 | SP, UNIQUE, 트랜잭션, Money/Point 원장, 배치·재시도, 오류 검증 | 100 동시요청, 예약 1000명/중단/재실행 검증 |
 | **P3** | 운영 중 DB 변경 | 장애 보상 CS 기능, DDL·SP 마이그레이션, Lock/Forward Fix | 이전·이후 요청/원장/잠금 영향 증명 |
 | P4 | 튜닝과 온라인 변경 | 대량 이력, 실행 계획, 인덱스, CONCURRENTLY | 성능 전후+쓰기 비용 비교 |
-| P5 | HA 운영 | Replication, 수동→자동 Failover, Proxy, read-lag | RTO/RPO/일관성·분할 방지 실험 |
-| P6 | Backup/PITR | Base Backup, WAL Archive, 별도 복원 | 삭제 이전 데이터와 정상 이후 데이터 대조 |
-| P7 | 운영 자동화 | Python/Bash CLI, 관측 수집, 실험 보고서 | 재현·진단·검증 반복 실행 |
-| P8 선택 | CloudNativePG | Kubernetes 운영 및 DB 이전 | 장애/백업/연결 전환 검증 |
+| P5 | 운영 진단 | 세션·Lock 관측, incident 절차·복구 기록 | Blocker/Waiter와 wait event 확인, 조치 뒤 정합성 대사 |
+| P6 | Backup/PITR | Base Backup, WAL Archive, 별도 복원 | 복구 지점 전후 데이터와 서비스 상태 대조 |
+| P7 | HA 운영 | Replication, 수동 Failover, 연결 전환, read-lag | 복제 상태·쓰기 역할·RPO/RTO 기록 |
+| P8 | 운영 자동화 | Python/Bash CLI, 관측 수집, 실험 보고서 | 재현·진단·검증을 반복 실행 |
+| P9 선택 | CloudNativePG | Kubernetes 운영 및 DB 이전 | 장애/백업/연결 전환 검증 |
 
 ## 2. P0 — 첫 시작
 
@@ -91,16 +92,16 @@ P2b는 배치를 쉽게 이해하기 위한 확장이다. P2a를 마친 직후 �
 
 **P4 Gate:** 조회 계획 변경, source별 API 결과, 부분 인덱스 크기, 추가 WAL, DDL 중 writer 동작을 [P4 실행 기록](implementation/exec/p4.md)에 기록했다.
 
-## 7. P5~P8 (확장)
+## 7. P6~P9 (확장)
 
-- P5: Primary–Standby → 수동 Failover → HA Manager/Proxy → 읽기 지연 → 비동기/동기 정책.
 - P6: Base Backup/WAL Archive → PITR → 데이터 검증 → 복원 런북.
-- P7: 실험 통합 실행기/운영 CLI/지표·보고서 자동화, 배치 크기 최적화 실험.
-- P8: CloudNativePG(K8s)로 DB 이전, 복구·연결 전환 비교(선택).
+- P7: Primary–Standby → 수동 Failover → 연결 전환 → 읽기 지연 → 비동기/동기 정책.
+- P8: 실험 통합 실행기/운영 CLI/지표·보고서 자동화, 배치 크기 최적화 실험.
+- P9: CloudNativePG(K8s)로 DB 이전, 복구·연결 전환 비교(선택).
 
 ## 8. 업무 우선순위
 
-펄어비스의 DB 설계·SP·버전 관리·패치 요구는 P0~P4에 직접 연결. 커넥트웨이브의 PostgreSQL 운영·백업·복제·CloudNativePG는 P3~P8에 연결. **어느 하나의 회사만을 위한 게임 기능을 추가하지 않는다.**
+펄어비스의 DB 설계·SP·버전 관리·패치 요구는 P0~P5에 직접 연결. 커넥트웨이브의 PostgreSQL 운영·백업·복제·CloudNativePG는 P3~P9에 연결. **어느 하나의 회사만을 위한 게임 기능을 추가하지 않는다.**
 
 ## 9. 프로젝트 관리 지침
 

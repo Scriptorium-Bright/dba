@@ -1,9 +1,9 @@
 # PostgreSQL 이벤트 보상 DB 운영 프로젝트 — 문서 인덱스
 
 - **문서 버전:** 설계 기준 v2.0 (2026-11-21)
-- **상태:** P0~P1 기능 구현, P2a/P2b 핵심 인수 실험, P3 보상·migration·Lock 실습, P4 대량 ledger 검색·인덱스 실습을 기록했다. 보상 요청 재전송은 사용자 실습으로 남겼으며, 전체 TC-001~016 및 P1 UI Gate는 계속 추적한다. 현재 단계 소개는 [Phase 안내](implementation/phase-guide.md), phase별 변경과 결과는 [구현 기록](implementation/exec.md)을 참고한다.
+- **상태:** P0~P1 기능 구현, P2a/P2b 핵심 인수 실험, P3 보상·migration·Lock 실습, P4 대량 ledger 검색·인덱스 실습, P5 운영 진단·Lock Wait 대응을 기록했다. 보상 요청 재전송은 사용자 실습으로 남겼으며, 전체 TC-001~016 및 P1 UI Gate는 계속 추적한다. 현재 단계 소개는 [Phase 안내](implementation/phase-guide.md), phase별 변경과 결과는 [구현 기록](implementation/exec.md)을 참고한다.
 - **대상 직무:** DBA / Database Engineer (펄어비스의 DB 객체·SP·패치 업무와 커넥트웨이브의 PostgreSQL 운영·복구·튜닝 업무를 함께 고려)
-- **우선 작업:** 현재 P4 구현·실습 기록을 정리하고 다음 P5 HA 시나리오를 진행한다.
+- **우선 작업:** P5 Lock Wait 진단 기록을 참고하고 다음 단계에서 Backup/PITR 복원과 대사를 진행한다.
 
 ## 읽는 순서
 
@@ -26,7 +26,7 @@
 | [15_Stored_Procedure_설계.md](15_Stored_Procedure_설계.md) | 지급 SP를 실제 SQL로 어떻게 설계하고 호출하나? |
 | [implementation/plan.md](implementation/plan.md) | P0~P1, P2a/P2b, P3의 구현 전 범위와 결정을 어떻게 정했나? |
 | [implementation/exec.md](implementation/exec.md) | 구현 후 어떤 변경을 했고 무엇이 남았나? |
-| [implementation/phase-guide.md](implementation/phase-guide.md) | 현재 P4가 무엇을 다루고 화면·API·SQL로 어떻게 확인하나? |
+| [implementation/phase-guide.md](implementation/phase-guide.md) | 현재 P5가 무엇을 다루고 DB·SQL로 어떻게 확인하나? |
 
 ## 최종 방향 요약
 
@@ -35,7 +35,7 @@
 - **공통 저장 모델:** 두 경로 모두 `reward_grants`에 실제 커밋된 지급을 기록하고, `wallet_ledger`에 재화 종류별 원장을 남긴다. `event_recipients`는 일괄 지급의 *대상자 명단*이다.
 - **초기 운영:** React → Spring Boot → 단일 PostgreSQL. Flyway와 관측·실험 도구는 별도 관리 연결.
 - **확장 운영:** PostgreSQL Primary/Standby, 장애 관리, 연결 전환, WAL 아카이브 및 복원 환경.
-- **시나리오:** 정상 지급 → 일괄 지급 중 장애 → Crash Recovery 후 미지급 재처리 → 장애 보상 도입을 위한 변경 배포 → 지급 이력 조회 지연 → DDL Lock → 복제 지연/Failover → PITR → 운영 자동화.
+- **시나리오:** 정상 지급 → 일괄 지급 중 장애 → Crash Recovery 후 미지급 재처리 → 장애 보상 도입을 위한 변경 배포 → 지급 이력 조회 지연·DDL Lock → idle transaction Lock Wait 진단 → PITR → 복제 지연/Failover → 운영 자동화.
 - **측정 원칙:** API 응답, DB 커밋, 실제 잔액·원장, DB 내부 지표는 구분. p95는 SQL/서비스 성능을 평가할 때 선택적으로 사용하며 DBA의 필수 지표는 아니다.
 
 ## 이 문서가 이전 설계에서 변경한 사항

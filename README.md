@@ -45,6 +45,6 @@ docker compose up --build
 
 전체 DB를 삭제하지 않고 한 사용자의 지갑을 초기화하려면 `내 지갑` 화면의 `내 지갑 초기화`를 사용하세요. DB에 있는 모든 사용자 지갑을 초기화하려면 운영자 역할로 `운영 관리`에 들어가 `전체 유저 초기화`를 사용합니다. 두 동작은 잔액과 지급 grant·원장을 함께 초기화하며, 사용자·이벤트·배치 실행 이력은 보존합니다. 자세한 단계는 [Phase 안내서의 지갑 초기화 절차](pg_reward_dba_docs/implementation/phase-guide.md#프런트에서-지갑-초기화하기)를 참고하세요. 로컬 개발 DB 전용입니다.
 
-P0~P4 phase별 구현 기록과 현재 P4 실습 안내는 [`pg_reward_dba_docs/implementation/`](pg_reward_dba_docs/implementation/)에 있습니다.
+P0~P5 phase별 구현 기록과 현재 P5 실습 안내는 [`pg_reward_dba_docs/implementation/`](pg_reward_dba_docs/implementation/)에 있습니다.
 
 현재 구현 Phase의 목적과 화면·API·SQL 확인 방법은 [Phase 안내서](pg_reward_dba_docs/implementation/phase-guide.md)를 참고하세요.

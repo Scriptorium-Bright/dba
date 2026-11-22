@@ -1,12 +1,12 @@
-# 현재 구현 Phase 안내 — P4
+# 현재 구현 Phase 안내 — P5
 
-> **현재 상태 (2026-11-22):** P3의 구버전 API 교차 실행과 검색 경계 확인을 마쳤고, 현재 P4에서 대량 지급 이력 쿼리와 인덱스 생성을 실습한다. 보상 요청 재전송은 사용자가 직접 확인할 수 있도록 남겼다. P0~P4 변경과 실행 결과는 [phase별 구현 기록](exec.md)을 참고한다.
+> **현재 상태 (2026-11-22):** P5 전용 PostgreSQL에서 `idle in transaction`이 보유한 행 Lock과 대기 UPDATE를 재현하고, observer 진단·대기 해소·fixture 복구를 확인했다. 실행 순서와 관측값은 [P5 실행 기록](exec/p5.md)에 있다. P0~P5 변경과 결과는 [phase별 구현 기록](exec.md)을 참고한다.
 
 ## 이 프로젝트와 현재 단계
 
 이 프로젝트는 React 화면과 Spring Boot API를 통해 게임 이벤트 보상을 PostgreSQL에 지급하는 로컬 DBA 실습 환경이다. 가상 Money/Point를 지급할 때 **grant(지급 사실), wallet(현재 잔액), ledger(잔액 변동 원장)**가 함께 맞는지, 요청이 겹치거나 작업이 중단돼도 중복·누락 없이 확인하고 재개할 수 있는지를 단계별로 확인한다.
 
-현재 집중하는 Phase는 **P4 — 대량 지급 이력 검색과 인덱스 튜닝**이다. P3는 이벤트 지급과 별도의 고객지원 보상을 원장에 추가하고, schema 변경 중 기존 CLAIM을 유지하는 과정을 확인했다. P4는 백만 건의 원장에서 검색 실행계획을 비교하고, 조회 이득과 인덱스 쓰기 비용을 함께 측정한다.
+현재 집중하는 Phase는 **P5 — 운영 진단과 Lock Wait 대응**이다. P3는 이벤트 지급과 별도의 고객지원 보상을 원장에 추가하고 schema 변경 중 기존 CLAIM을 유지했다. P4는 백만 건의 원장에서 검색 계획과 인덱스 비용을 비교했다. P5는 세션 상태와 대기 사슬을 읽고, 조치 후 업무 결과와 기준 데이터를 확인한다.
 
 ## Phase 지도
 
@@ -18,7 +18,8 @@
 | P2b | BATCH 대상 관리와 수동 worker 구현 | 대상별 커밋, worker 중복 방지, 장애 후 재개·대사 | 1,000명 Crash Recovery 실험 통과 |
 | P3 | 이벤트 장애 CS 보상, 통합 지급 이력 검색, 온라인 schema 변경·Lock·migration 실패 복구 | 기존/구버전 CLAIM, 두 출처의 FK/대사, DDL 대기, 날짜와 cursor 경계 | 핵심 구현·실습 완료; 보상 재전송은 사용자가 직접 확인 |
 | P4 | 백만 지급 원장, EXPLAIN, 부분 인덱스, 인덱스 생성 방식 비교 | 전체 검색/기간 검색 계획, WAL·공간 비용, DML 대기 | 구현·실습 완료 |
-| P5 이후 | 복제·Failover, Backup/PITR 등 | 성능·HA·복구 운영 | 아직 구현하지 않음 |
+| P5 | PostgreSQL 세션·Lock 진단, incident 대응·복구 기록 | Blocker/Waiter, wait event, 트랜잭션 나이, 동시 SELECT, 복구 뒤 정합성 | Lock Wait 실습 완료 |
+| P6 이후 | Backup/PITR, 복제·Failover, 운영 자동화 | 복원 결과, RPO/RTO, HA와 반복 진단 | 다음 단계 |
 
 ## P2에서 데이터가 흐르는 방식
 
@@ -406,6 +407,42 @@ python3 experiments/p4_index_build_demo.py
 
 실행계획과 측정 결과는 [P4 실행 기록](exec/p4.md)에서 확인합니다. UI에서 `운영 관리 → 지급 이력 검색`을 열면 source, 사용자, 기간, beforeId 조건으로 같은 API를 직접 조회할 수 있습니다.
 
+## 현재 Phase P5 — 운영 진단과 Lock Wait 대응
+
+P5에서는 앱 화면을 추가하는 대신 DB 안의 장애 징후를 해석합니다. 세션 A가 행 Lock을 보유한 채 트랜잭션을 열어 두고, 세션 B의 UPDATE가 대기합니다. observer는 두 세션의 PID·상태·SQL·wait event를 연결합니다. 세션 C의 SELECT도 실행해 어떤 요청이 기다리고 어떤 요청이 이전 committed 값을 읽는지 확인합니다.
+
+### P5 전용 서버와 fixture 준비
+
+P5는 `rewardp5db`, `reward_p5_pgdata`, PostgreSQL 17.12와 Docker Engine loopback의 55434 포트를 사용합니다. 기존 P2~P4 컨테이너·볼륨과 분리됩니다. 관리형 Colima에서는 호스트 `psql` 대신 같은 Docker Engine의 `docker exec`로 실습 명령을 실행합니다.
+
+```sh
+cd /Users/jeonjeonghyeon/studyCollection/dbaPj
+export DOCKER_HOST=unix:///private/tmp/reward-colima/active-docker.sock
+docker -H "$DOCKER_HOST" compose -p reward-p5 -f compose.p5.yaml up -d
+docker -H "$DOCKER_HOST" compose -p reward-p5 -f compose.p5.yaml ps
+
+docker -H "$DOCKER_HOST" exec -i reward-p5-db-1 psql -X -v ON_ERROR_STOP=1 \
+  -U reward_bootstrap -d rewardp5db < experiments/sql/p5_prepare_lock_lab.sql
+```
+
+`p5_prepare_lock_lab.sql`은 DB명이 `rewardp5db`가 아니면 중단합니다. 첫 Compose 초기화 시 observer에 `pg_monitor`를 부여하며, 관측 계정은 fixture를 SELECT할 수 있지만 UPDATE 권한은 없습니다.
+
+### P5 incident 실행
+
+```sh
+python3 experiments/p5_lock_incident.py
+docker -H "$DOCKER_HOST" exec -i reward-p5-db-1 psql -X -v ON_ERROR_STOP=1 \
+  -U reward_observer -d rewardp5db < experiments/sql/p5_observe_lock_wait.sql
+```
+
+1. A가 `BEGIN` 뒤 `SELECT ... FOR UPDATE`로 행을 잠그고 `idle in transaction` 상태가 됩니다.
+2. B가 같은 행 UPDATE를 요청해 `Lock/transactionid`를 기다립니다.
+3. `pg_blocking_pids()`로 B→A blocker 관계와 A/B SQL을 대조합니다.
+4. C의 SELECT가 기다리는 동안 `balance=100`을 읽는지 확인합니다.
+5. A를 COMMIT하고 B 완료 및 단일 잔액 증가를 확인합니다. harness는 실습 후 기준값 100을 복구합니다.
+
+수동 진단이 필요하면 관측 SQL을 다른 연결에서 실행합니다. 실행 전 가설과 실제 관측은 [P5 실행 기록](exec/p5.md)에서 구분합니다. 사건 타임라인, 선택한 조치, 사후 데이터 대사와 재발 방지 제안도 같은 기록에 있습니다.
+
 ## 핵심 개념과 참고 자료
 
 | 개념 | 이 프로젝트에서의 뜻 | 로컬 자료 |
@@ -414,6 +451,7 @@ python3 experiments/p4_index_build_demo.py
 | 멱등성(Idempotency) | 같은 요청을 다시 보내도 지급이 중복되지 않음 | [트랜잭션과 정확성](../../dba/foundations/04-transactions-and-correctness.md) |
 | UNIQUE와 경합 | 애플리케이션 확인만 믿지 않고 DB 제약으로 사용자별 중복 grant를 막음 | [버전과 트랜잭션](../../dba/concepts/04-versions-and-transactions.md) |
 | Advisory lock | 같은 이벤트의 batch worker가 동시에 실행되지 않도록 작업 단위 잠금을 둠 | 구현 주석과 [exec.md](exec.md) 참조 |
+| Lock wait 진단 | `wait_event_type`, blocker PID, SQL, 트랜잭션 상태를 연결해 요청 대기 원인을 좁힘 | [P5 실습](exec/p5.md), [U15](../../dba/chapters/15-monitoring-troubleshooting.md) |
 | WAL REDO | DB crash 후 커밋된 페이지 변경을 복구해 PostgreSQL 데이터 상태를 회복 | [Crash Recovery](../../dba/chapters/01-crash-recovery.md) |
 | 업무 재처리 | DB 복구와 별도로 대상 명단과 지급 사실을 대조해 미지급자를 재실행 | [P2 실험 README](../../experiments/README.md) |
 

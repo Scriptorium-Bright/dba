@@ -249,7 +249,9 @@ Primary/Standby·자동 Failover, PITR/Backup 복원, 인증/권한 제품화는
 - [x] normal `CREATE INDEX`와 `CREATE INDEX CONCURRENTLY` 차이 관찰.
 - [x] P4 API와 UI에서 전체·기간·cursor 검색 응답 확인.
 
-# P5 구현 전 계획 — 운영 진단과 Lock Wait 대응
+# P5 구현·실습 계획 — 운영 진단과 Lock Wait 대응
+
+**상태:** 실습 완료 (2026-11-22). 실제 관측값과 판단은 [P5 실행 기록](exec/p5.md)에 남겼습니다.
 
 **목표:** P4까지의 기능 개발과 별개로, DB에서 대기 장애를 관측하고 원인을 좁혀 복구하는 과정을 재현 가능한 운영 기록으로 남깁니다. 첫 실습은 오래 열린 트랜잭션이 행 Lock을 보유해 UPDATE가 기다리는 상황입니다.
 
@@ -268,7 +270,7 @@ Primary/Standby·자동 Failover, PITR/Backup 복원, 인증/권한 제품화는
 
 1. P5 전용 Compose DB, `reward_p5_pgdata`, loopback 포트 55434를 정의합니다.
 2. 읽기 전용 관측 SQL과 단일 행 Lock Wait fixture를 추가합니다. 모든 준비 SQL은 현재 DB가 `rewardp5db`인지 먼저 검사합니다.
-3. 표준 라이브러리와 로컬 `psql`만 사용하는 incident harness로 A/B/C 세션을 순서대로 열고 관측·복구합니다.
+3. Python 표준 라이브러리와 `docker exec` 안의 `psql`을 쓰는 incident harness로 A/B/C 세션을 순서대로 열고 관측·복구합니다.
 4. 실행 전 가설, 타임라인, 관측된 PID·Wait Event·SQL, 조치, 복구 후 대사와 재발 방지 판단을 P5 실행 기록에 남깁니다.
 
 ## 확인할 운영 역량
@@ -295,9 +297,9 @@ Primary/Standby·자동 Failover, PITR/Backup 복원, 인증/권한 제품화는
 
 ## P5 완료 조건
 
-- [ ] P5 DB가 P2~P4와 다른 DB·볼륨·포트로 기동한다.
-- [ ] A가 `idle in transaction`으로 Lock을 보유하고 B가 `Lock` Wait Event에서 대기한다.
-- [ ] observer 출력에서 B의 blocker PID가 A와 일치하고 양쪽 SQL을 구분한다.
-- [ ] C의 SELECT가 Blocker 종료 전 완료되고 이전 committed 값을 읽는다.
-- [ ] A 조치 후 B가 완료되고 fixture가 기준값 100으로 복구된다.
-- [ ] 실행 시각·명령·버전·관측값·판단·복구·재발 방지 후보를 P5 실행 기록에 남긴다.
+- [x] P5 DB가 P2~P4와 다른 DB·볼륨·포트로 기동한다.
+- [x] A가 `idle in transaction`으로 Lock을 보유하고 B가 `Lock` Wait Event에서 대기한다.
+- [x] observer 출력에서 B의 blocker PID가 A와 일치하고 양쪽 SQL을 구분한다.
+- [x] C의 SELECT가 Blocker 종료 전 완료되고 이전 committed 값을 읽는다.
+- [x] A 조치 후 B가 완료되고 fixture가 기준값 100으로 복구된다.
+- [x] 실행 시각·명령·버전·관측값·판단·복구·재발 방지 후보를 P5 실행 기록에 남긴다.

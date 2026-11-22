@@ -8,12 +8,14 @@ END
 $p5_database_guard$;
 
 CREATE SCHEMA IF NOT EXISTS p5_ops AUTHORIZATION reward_migration;
+ALTER SCHEMA p5_ops OWNER TO reward_migration;
 
 -- 읽기 세션은 이전 committed 값을 볼 수 있고 UPDATE는 행 잠금을 기다리도록 단일 행을 둡니다.
 CREATE TABLE IF NOT EXISTS p5_ops.lock_lab (
     id integer PRIMARY KEY,
     balance integer NOT NULL CHECK (balance >= 0)
 );
+ALTER TABLE p5_ops.lock_lab OWNER TO reward_migration;
 
 INSERT INTO p5_ops.lock_lab(id, balance)
 VALUES (1, 100)

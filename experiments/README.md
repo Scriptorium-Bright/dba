@@ -73,11 +73,11 @@ export DOCKER_HOST=unix:///private/tmp/reward-colima/active-docker.sock
 docker compose -p reward-p5 -f compose.p5.yaml up -d
 docker compose -p reward-p5 -f compose.p5.yaml ps
 
-psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 55434 \
-  -U reward_migration -d rewardp5db -f experiments/sql/p5_prepare_lock_lab.sql
+docker -H "$DOCKER_HOST" exec -i reward-p5-db-1 psql -X -v ON_ERROR_STOP=1 \
+  -U reward_bootstrap -d rewardp5db < experiments/sql/p5_prepare_lock_lab.sql
 python3 experiments/p5_lock_incident.py
-psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 55434 \
-  -U reward_observer -d rewardp5db -f experiments/sql/p5_observe_lock_wait.sql
+docker -H "$DOCKER_HOST" exec -i reward-p5-db-1 psql -X -v ON_ERROR_STOP=1 \
+  -U reward_observer -d rewardp5db < experiments/sql/p5_observe_lock_wait.sql
 ```
 
 기본 계정 비밀번호는 로컬 전용 값이며 `.env.example`의 `P5_DB_*` 변수로 바꿀 수 있습니다. 컨테이너 초기화가 끝난 뒤 `reward_observer`는 P5 인스턴스의 `pg_monitor` 권한으로 관측 SQL을 실행합니다. P5 볼륨을 기존에 만들어 둔 경우 init SQL은 다시 실행되지 않으므로 `reward_bootstrap`으로 `GRANT pg_monitor TO reward_observer;`를 한 번 적용합니다.

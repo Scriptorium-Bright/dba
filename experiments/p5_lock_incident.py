@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reproduce and diagnose one isolated P5 row-lock wait using the local psql client."""
+"""Reproduce and diagnose one isolated P5 row-lock wait using container psql sessions."""
 
 from __future__ import annotations
 
@@ -10,30 +10,34 @@ from datetime import datetime, timezone
 
 
 # Only this dedicated database is accepted; P2~P4 databases are never targets.
-DB_NAME = os.environ.get("P5_DB_NAME", "rewardp5db")
-DB_HOST = os.environ.get("P5_DB_HOST", "127.0.0.1")
-DB_PORT = os.environ.get("P5_DB_PORT", "55434")
+# Keep the database guard fixed so an environment override cannot redirect the lab.
+DB_NAME = "rewardp5db"
 PSQL = os.environ.get("P5_PSQL_BIN", "psql")
+DOCKER = os.environ.get("P5_DOCKER_BIN", "docker")
+DOCKER_HOST = os.environ.get(
+    "DOCKER_HOST", "unix:///private/tmp/reward-colima/active-docker.sock"
+)
+DB_CONTAINER = os.environ.get("P5_DB_CONTAINER", "reward-p5-db-1")
 POLL_SECONDS = 0.1
 WAIT_SECONDS = 15
 BASELINE_BALANCE = 100
 
 MIGRATION_USER = os.environ.get("P5_DB_MIGRATION_USER", "reward_migration")
 OBSERVER_USER = os.environ.get("P5_DB_OBSERVER_USER", "reward_observer")
-MIGRATION_PASSWORD = os.environ.get(
-    "P5_DB_MIGRATION_PASSWORD", "p5_migration_local_only"
-)
-OBSERVER_PASSWORD = os.environ.get(
-    "P5_DB_OBSERVER_PASSWORD", "p5_observer_local_only"
-)
 
 BLOCKER_APP = "p5_blocker_a"
 WAITER_APP = "p5_waiter_b"
 
 
-def psql_args(application: str, user: str) -> list[str]:
-    """Build a noninteractive psql command with an identifying application_name."""
-    return [
+def psql_args(application: str, user: str, sql: str | None = None) -> list[str]:
+    """Build a psql command inside the isolated database container."""
+    args = [
+        DOCKER,
+        "exec",
+        "-i",
+        "-e",
+        f"PGAPPNAME={application}",
+        DB_CONTAINER,
         PSQL,
         "-X",
         "-q",
@@ -44,39 +48,31 @@ def psql_args(application: str, user: str) -> list[str]:
         "-v",
         "ON_ERROR_STOP=1",
         "--no-password",
-        "-h",
-        DB_HOST,
-        "-p",
-        DB_PORT,
         "-U",
         user,
         "-d",
         DB_NAME,
-        "-c",
-        "SELECT 1",
     ]
+    if sql is not None:
+        args.extend(["-c", sql])
+    return args
 
 
-def connection_env(application: str, user: str) -> dict[str, str]:
-    """Supply local-demo credentials without placing them in command arguments."""
-    password = MIGRATION_PASSWORD if user == MIGRATION_USER else OBSERVER_PASSWORD
-    return {
-        **os.environ,
-        "PGAPPNAME": application,
-        "PGPASSWORD": password,
-    }
+def connection_env() -> dict[str, str]:
+    """Point docker exec at the selected local engine without exporting DB passwords."""
+    return {**os.environ, "DOCKER_HOST": DOCKER_HOST}
 
 
 def run_sql(application: str, user: str, sql: str) -> str:
     """Run a short command and return psql's tuple-only output."""
-    args = psql_args(application, user)
-    args[-1] = sql
+    args = psql_args(application, user, sql)
+    args.remove("-i")
     result = subprocess.run(
         args,
         check=True,
         capture_output=True,
         text=True,
-        env=connection_env(application, user),
+        env=connection_env(),
         timeout=10,
     )
     return result.stdout.strip()
@@ -85,12 +81,12 @@ def run_sql(application: str, user: str, sql: str) -> str:
 def start_session(application: str, user: str) -> subprocess.Popen[str]:
     """Open an interactive psql session so a transaction can remain observable."""
     return subprocess.Popen(
-        psql_args(application, user)[:-2],
+        psql_args(application, user),
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        env=connection_env(application, user),
+        env=connection_env(),
     )
 
 
