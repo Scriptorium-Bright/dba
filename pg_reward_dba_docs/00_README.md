@@ -1,7 +1,7 @@
 # PostgreSQL 이벤트 보상 DB 운영 프로젝트 — 문서 인덱스
 
 - **문서 버전:** 설계 기준 v2.0 (2026-11-21)
-- **상태:** P0~P1 기능 구현, P2a/P2b 핵심 인수 실험, P3 보상·migration·Lock 실습, P4 대량 ledger 검색·인덱스 실습, P5 운영 진단·Lock Wait 대응을 기록했다. 보상 요청 재전송은 사용자 실습으로 남겼으며, 전체 TC-001~016 및 P1 UI Gate는 계속 추적한다. 현재 단계 소개는 [Phase 안내](implementation/phase-guide.md), phase별 변경과 결과는 [구현 기록](implementation/exec.md)을 참고한다.
+- **상태:** P0~P1 기능 구현, P2a/P2b 핵심 인수 실험, P3 보상·migration·Lock 실습, P4 대량 ledger 검색·인덱스 실습, P5 운영 진단·Lock Wait 대응을 기록했다. 보상 요청 재전송은 사용자 실습으로 남겼으며, 전체 TC-001~016 및 P1 UI Gate는 계속 추적한다. 현재 단계 소개는 [Phase 안내](implementation/phase-guide.md), phase별 변경과 결과는 [구현 기록](implementation/exec.md)을 참고한다. 채용 공고에 맞춘 제출용 정리는 [포트폴리오 문서](portfolio/README.md)에서 시작한다.
 - **대상 직무:** DBA / Database Engineer (펄어비스의 DB 객체·SP·패치 업무와 커넥트웨이브의 PostgreSQL 운영·복구·튜닝 업무를 함께 고려)
 - **우선 작업:** P5 Lock Wait 진단 기록을 참고하고 다음 단계에서 Backup/PITR 복원과 대사를 진행한다.
 
@@ -27,6 +27,9 @@
 | [implementation/plan.md](implementation/plan.md) | P0~P1, P2a/P2b, P3의 구현 전 범위와 결정을 어떻게 정했나? |
 | [implementation/exec.md](implementation/exec.md) | 구현 후 어떤 변경을 했고 무엇이 남았나? |
 | [implementation/phase-guide.md](implementation/phase-guide.md) | 현재 P5가 무엇을 다루고 DB·SQL로 어떻게 확인하나? |
+| [portfolio/README.md](portfolio/README.md) | 프로젝트를 공고에 맞춰 어떤 순서로 소개하고 어떤 증거를 보여주나? |
+| [portfolio/직무요건_매핑.md](portfolio/직무요건_매핑.md) | 공고의 업무·역량과 phase별 결과가 어떻게 연결되나? |
+| [portfolio/발표와_면접_가이드.md](portfolio/발표와_면접_가이드.md) | 3분 발표와 DB 기술 질문을 어떻게 준비하나? |
 
 ## 최종 방향 요약
 

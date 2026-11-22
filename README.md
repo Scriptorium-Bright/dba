@@ -48,3 +48,5 @@ docker compose up --build
 P0~P5 phase별 구현 기록과 현재 P5 실습 안내는 [`pg_reward_dba_docs/implementation/`](pg_reward_dba_docs/implementation/)에 있습니다.
 
 현재 구현 Phase의 목적과 화면·API·SQL 확인 방법은 [Phase 안내서](pg_reward_dba_docs/implementation/phase-guide.md)를 참고하세요.
+
+펄어비스 DBA 공고에 맞춰 프로젝트 경험과 증거를 정리한 [포트폴리오 문서](pg_reward_dba_docs/portfolio/README.md)도 함께 만들었습니다.
