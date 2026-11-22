@@ -156,6 +156,8 @@ def p2a():
             f"before={before}, after={after}, sql={rollback_sql.stdout.strip()}"
         )
 
+    request_id_race = p2a_request_id_race(claim_with_key)
+
     print(json.dumps({
         "eventId": event_id,
         "sameKeyResults": result_counts,
@@ -165,7 +167,173 @@ def p2a():
         "rollbackEventId": rollback_event,
         "rollbackWalletUnchanged": before == after,
         "rollbackSql": rollback_sql.stdout.strip().splitlines()[-1],
+        "concurrentRequestIdRace": request_id_race,
     }, ensure_ascii=False, indent=2))
+
+
+def psql_transaction(application_name, sql):
+    """지정 SQL을 미커밋 상태로 열어 두는 별도 PostgreSQL 세션을 시작한다."""
+    env = os.environ.copy()
+    env["DOCKER_HOST"] = DOCKER_HOST
+    process = subprocess.Popen(
+        [
+            "docker", "compose", "exec", "-T", "db", "psql", "-X", "-q", "-A", "-t",
+            "-v", "ON_ERROR_STOP=1", "-U", "reward_bootstrap", "-d", "rewarddb",
+        ],
+        cwd=ROOT,
+        env=env,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    process.stdin.write(f"SET application_name = '{application_name}';\nBEGIN;\n{sql}\n")
+    process.stdin.flush()
+    return process
+
+
+def finish_psql_transaction(process, command="COMMIT"):
+    """대기 세션의 transaction을 끝내고 psql 종료 코드·응답을 확인한다."""
+    if process.poll() is None:
+        process.stdin.write(f"{command};\n\\q\n")
+        process.stdin.flush()
+        process.stdin.close()
+    output = process.stdout.read()
+    return_code = process.wait(timeout=15)
+    if return_code != 0:
+        raise RuntimeError(f"경합 재현 SQL transaction 실패: {output.strip()}")
+    return output.strip()
+
+
+def pg_condition(sql, timeout, description):
+    """pg_stat_activity에서 세션 단계가 실제로 관찰될 때까지 기다린다."""
+    deadline = time.monotonic() + timeout
+    command = [
+        "exec", "-T", "db", "psql", "-X", "-A", "-t", "-U", "reward_bootstrap",
+        "-d", "rewarddb", "-c", sql,
+    ]
+    while time.monotonic() < deadline:
+        observed = docker(command, check=False)
+        if observed.returncode == 0 and observed.stdout.strip() == "1":
+            return
+        time.sleep(0.05)
+    raise RuntimeError(f"PostgreSQL에서 {description} 상태를 관찰하지 못했습니다.")
+
+
+def p2a_request_id_race(claim_with_key=None):
+    """동일 UUID waiter와 별도 pair 지급이 겹치는 경합을 재현해 409와 정합성을 확인한다."""
+    if claim_with_key is None:
+        def claim_with_key(target_event_id, key, target_user_id=101):
+            req = urllib.request.Request(
+                API_BASE + f"/api/events/{target_event_id}/claims",
+                headers={**ADMIN_HEADERS, "X-User-Id": str(target_user_id), "Idempotency-Key": key},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=30) as response:
+                    return json.loads(response.read())
+            except urllib.error.HTTPError as error:
+                return {"httpStatus": error.code, **json.loads(error.read())}
+
+    request_id = str(uuid.uuid4())
+    second_request_id = str(uuid.uuid4())
+    event_a = create_event("CLAIM", 7, 3)
+    event_b = create_event("CLAIM", 7, 3)
+    open_event(event_a)
+    open_event(event_b)
+
+    # 전용 사용자로 기존 데모 지갑에 실험 지급을 섞지 않는다.
+    user_a = 1_700_000_000_000 + time.time_ns() % 1_000_000_000
+    user_b = user_a + 1
+    seed_users = docker([
+        "exec", "-T", "db", "psql", "-X", "-v", "ON_ERROR_STOP=1", "-U",
+        "reward_bootstrap", "-d", "rewarddb", "-c",
+        f"INSERT INTO reward.users(id,nickname) VALUES ({user_a},'request-id-race-a'),"
+        f"({user_b},'request-id-race-b'); "
+        f"INSERT INTO reward.wallets(user_id) VALUES ({user_a}),({user_b});",
+    ])
+    if seed_users.returncode != 0:
+        raise RuntimeError(f"경합 실험 사용자 생성 실패: {seed_users.stdout.strip()}")
+
+    winner_a = psql_transaction(
+        "request_id_race_winner_a",
+        f"CALL reward.grant_event_reward({event_a}, {user_a}, '{request_id}', 'CLAIM', NULL, NULL);",
+    )
+    api_waiter = None
+    try:
+        pg_condition(
+            "SELECT CASE WHEN count(*) = 1 THEN 1 ELSE 0 END "
+            "FROM pg_stat_activity WHERE application_name='request_id_race_winner_a' "
+            "AND state='idle in transaction' AND xact_start IS NOT NULL",
+            10,
+            "request_id winner의 열린 transaction",
+        )
+
+        # 다른 사용자·이벤트의 B 요청은 UUID advisory lock에서 기다려야 한다.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            api_waiter = executor.submit(claim_with_key, event_b, request_id, user_b)
+            pg_condition(
+                "SELECT CASE WHEN count(*) = 1 THEN 1 ELSE 0 END "
+                "FROM pg_stat_activity WHERE wait_event_type='Lock' AND wait_event='advisory' "
+                "AND state='active' AND query ILIKE '%grant_event_reward%'",
+                10,
+                "동일 request_id의 transaction-level advisory wait",
+            )
+
+            # B가 ID와 event/user 사전 조회 전에 대기하는 동안, 같은 pair에 다른 key를 지급한다.
+            winner_c = claim_with_key(event_b, second_request_id, user_b)
+            if winner_c.get("result") != "PAID":
+                raise RuntimeError(f"별도 pair의 지급 결과가 예상과 다릅니다: {winner_c}")
+
+            winner_a_output = finish_psql_transaction(winner_a)
+            result_b = api_waiter.result(timeout=15)
+            if result_b.get("httpStatus") != 409:
+                raise RuntimeError(f"동시 request_id 재사용이 409로 처리되지 않았습니다: {result_b}")
+
+    finally:
+        if winner_a.poll() is None:
+            try:
+                finish_psql_transaction(winner_a, "ROLLBACK")
+            except Exception:
+                winner_a.kill()
+                winner_a.wait(timeout=5)
+
+    integrity = psql_file(
+        "experiments/sql/verify_request_id_lock_race.sql",
+        {
+            "event_a": event_a,
+            "event_b": event_b,
+            "user_a": user_a,
+            "user_b": user_b,
+            "request_id": request_id,
+            "second_request_id": second_request_id,
+        },
+    )
+    expected = "1|1|1|1|7|3|7|3|4|0|0"
+    if expected not in integrity.stdout:
+        raise RuntimeError(f"동시 request_id 정합성 대사가 실패했습니다: {integrity.stdout.strip()}")
+
+    request("POST", f"/api/admin/events/{event_a}/close")
+    request("POST", f"/api/admin/events/{event_b}/close")
+    privilege_result = psql_file(
+        "experiments/sql/verify_reward_app_permissions.sql",
+        {"event_id": event_a, "user_id": user_a, "request_id": request_id},
+    )
+    if "REPLAYED|" not in privilege_result.stdout:
+        raise RuntimeError(
+            "앱 역할의 직접 DML 차단, definer procedure 호출 또는 pg_temp 경로 검증이 실패했습니다: "
+            f"{privilege_result.stdout.strip()}"
+        )
+    return {
+        "requestId": request_id,
+        "winnerA": winner_a_output,
+        "winnerC": winner_c["result"],
+        "sameRequestDifferentPair": result_b["httpStatus"],
+        "databaseReconciliation": integrity.stdout.strip(),
+        "expected": "eventA/eventB grants=1/1, shared request owner=1, wallets=7/3 each, ledger rows=4, grant/wallet mismatches=0/0",
+        "appPrivilegeAndTempShadowCheck": privilege_result.stdout.strip(),
+    }
 
 
 def wait_for_database():
@@ -307,7 +475,7 @@ def p2b(crash_after_first_page=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("phase", choices=("p2a", "p2b"))
+    parser.add_argument("phase", choices=("p2a", "p2a-request-id-race", "p2b"))
     parser.add_argument(
         "--crash-after-first-page",
         action="store_true",
@@ -316,6 +484,8 @@ def main():
     options = parser.parse_args()
     if options.phase == "p2a":
         p2a()
+    elif options.phase == "p2a-request-id-race":
+        print(json.dumps(p2a_request_id_race(), ensure_ascii=False, indent=2))
     else:
         p2b(options.crash_after_first_page)
 

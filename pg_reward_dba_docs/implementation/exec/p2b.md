@@ -43,6 +43,21 @@ reconciliation: 1000|1000|0|0|0  (대상|grant|미지급|grant-ledger 불일치|
 
 - 첫 시도에서 readiness 확인이 port-forward 연결 종료를 재시도하지 못해 완료 판정이 지연됐다. readiness의 `RemoteDisconnected`/I/O 오류 재시도 후 재개 run을 완료했다. 사용자 초기 지갑 데이터는 삭제하지 않았다.
 
-## 남은 범위
+### V12 권한 변경 후 Crash Recovery 재검증
 
-전체 TC-001~016, P1 UI의 전체 시나리오, 상태 경합, 응답 유실 후 재시도는 별도 항목이다. BATCH는 수동 동기 실행이고 자동 예약 실행·큐·상태 polling은 없다. 로컬 role header는 인증·운영 권한 체계가 아니다.
+V12에서 지급 프로시저를 `SECURITY DEFINER`로 바꾸고 reward_app의 wallets/grants/ledger 직접 DML을 회수한 뒤 같은 실험을 다시 실행했다.
+
+| 측정 | 결과 |
+|---|---:|
+| 첫 페이지 | 600명 지급 완료 |
+| SIGKILL 당시 grants 관측 | 701 |
+| PostgreSQL recovery 완료 뒤 grants | 796 |
+| 재개 대상 및 지급 | 204 / 204 |
+| 최종 대상·grants·pending | 1,000 / 1,000 / 0 |
+| grant-ledger / wallet-ledger 불일치 | 0 / 0 |
+
+PostgreSQL 로그에서 비정상 종료, automatic recovery, REDO 완료와 ready 상태를 확인했다. 종료 신호와 recovery 사이에 추가 커밋이 생겨 701건 관측 이후 복구 완료 시점에는 796건이었고, 실제 미지급 204명을 다시 계산해 처리했다. 최종 SQL은 `1000|1000|0|0|0`을 반환했다.
+
+## 다음 실험
+
+다음으로 COMMIT 뒤 API 응답 유실, 사용자별 트랜잭션 경계, worker 재시작 중 중복 호출을 별도로 측정한다. 현재 BATCH는 운영자가 API로 시작하는 동기 worker이며, 화면은 사용자별 지급과 실행 결과를 확인한다.
