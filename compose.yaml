@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:17.12
+    environment:
+      POSTGRES_DB: rewarddb
+      POSTGRES_USER: reward_bootstrap
+      POSTGRES_PASSWORD: ${DB_BOOTSTRAP_PASSWORD:-local_bootstrap_only}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:-local_app_only}
+      DB_MIGRATION_PASSWORD: ${DB_MIGRATION_PASSWORD:-local_migration_only}
+      DB_OBSERVER_PASSWORD: ${DB_OBSERVER_PASSWORD:-local_observer_only}
+      TZ: UTC
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - reward_pgdata:/var/lib/postgresql/data
+      - ./database/bootstrap/10-create-roles.sh:/docker-entrypoint-initdb.d/10-create-roles.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reward_bootstrap -d rewarddb"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/rewarddb?currentSchema=reward&escapeSyntaxCallMode=callIfNoReturn
+      SPRING_DATASOURCE_USERNAME: reward_app
+      SPRING_DATASOURCE_PASSWORD: ${DB_APP_PASSWORD:-local_app_only}
+      SPRING_FLYWAY_URL: jdbc:postgresql://db:5432/rewarddb?currentSchema=reward
+      SPRING_FLYWAY_USER: reward_migration
+      SPRING_FLYWAY_PASSWORD: ${DB_MIGRATION_PASSWORD:-local_migration_only}
+      APP_ALLOWED_ORIGIN: http://127.0.0.1:5174
+      # 지갑과 지급 이력 초기화 도구는 이 로컬 Compose에서만 명시적으로 켠다.
+      APP_DEMO_WALLET_RESET_ENABLED: "true"
+    ports:
+      # 화면의 기존 로컬 포워딩이 연결된 Colima 엔진에 API를 공개한다.
+      - "127.0.0.1:8082:8080"
+
+volumes:
+  reward_pgdata:

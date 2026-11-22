@@ -1,0 +1,7 @@
+.git
+.env
+backend/target
+frontend/node_modules
+frontend/dist
+pg_reward_dba_docs
+experiments
