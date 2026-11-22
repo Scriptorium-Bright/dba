@@ -63,3 +63,23 @@ P3 장애 주입, DDL Lock 대기, migration 검증 실패와 forward fix 순서
 ## P4 — 대량 ledger, 쿼리 계획과 인덱스
 
 P4는 `compose.p4.yaml`의 `rewardp4db`와 `reward_p4_pgdata`를 사용합니다. 데이터 seed, 기준 실행계획, 후보/최종 인덱스, 쓰기 WAL 측정과 동시 DDL 스크립트 실행 순서는 [P4 실행 안내](../pg_reward_dba_docs/implementation/phase-guide.md#현재-phase-p4--대량-지급-이력-검색과-인덱스-튜닝)를 참고합니다. 파일별 목적, 주석과 결정 이유, 측정 결과는 [P4 실행 기록](../pg_reward_dba_docs/implementation/exec/p4.md)에 있습니다.
+
+## P5 — 운영 진단과 Lock Wait 대응
+
+P5는 별도 PostgreSQL `rewardp5db`, volume `reward_p5_pgdata`, loopback 포트 `55434`를 사용합니다. API/UI를 추가하지 않고 DB 세션 상태, blocker, waiter, read 응답과 복구 순서를 관찰합니다.
+
+```sh
+export DOCKER_HOST=unix:///private/tmp/reward-colima/active-docker.sock
+docker compose -p reward-p5 -f compose.p5.yaml up -d
+docker compose -p reward-p5 -f compose.p5.yaml ps
+
+psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 55434 \
+  -U reward_migration -d rewardp5db -f experiments/sql/p5_prepare_lock_lab.sql
+python3 experiments/p5_lock_incident.py
+psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 55434 \
+  -U reward_observer -d rewardp5db -f experiments/sql/p5_observe_lock_wait.sql
+```
+
+기본 계정 비밀번호는 로컬 전용 값이며 `.env.example`의 `P5_DB_*` 변수로 바꿀 수 있습니다. 컨테이너 초기화가 끝난 뒤 `reward_observer`는 P5 인스턴스의 `pg_monitor` 권한으로 관측 SQL을 실행합니다. P5 볼륨을 기존에 만들어 둔 경우 init SQL은 다시 실행되지 않으므로 `reward_bootstrap`으로 `GRANT pg_monitor TO reward_observer;`를 한 번 적용합니다.
+
+`p5_lock_incident.py`는 A의 열린 트랜잭션이 보유한 행 Lock을 B의 UPDATE가 기다리게 하고, C의 SELECT가 이전 committed 값을 읽는지 측정합니다. 관측 기록을 남긴 뒤 A를 COMMIT해 B를 진행시키고 fixture 값을 100으로 복원합니다. 실행 결과와 운영 판단은 [P5 실행 기록](../pg_reward_dba_docs/implementation/exec/p5.md)에 추가합니다.

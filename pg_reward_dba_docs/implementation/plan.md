@@ -248,3 +248,56 @@ Primary/Standby·자동 Failover, PITR/Backup 복원, 인증/권한 제품화는
 - [x] 추가 WAL/인덱스 크기 기록.
 - [x] normal `CREATE INDEX`와 `CREATE INDEX CONCURRENTLY` 차이 관찰.
 - [x] P4 API와 UI에서 전체·기간·cursor 검색 응답 확인.
+
+# P5 구현 전 계획 — 운영 진단과 Lock Wait 대응
+
+**목표:** P4까지의 기능 개발과 별개로, DB에서 대기 장애를 관측하고 원인을 좁혀 복구하는 과정을 재현 가능한 운영 기록으로 남깁니다. 첫 실습은 오래 열린 트랜잭션이 행 Lock을 보유해 UPDATE가 기다리는 상황입니다.
+
+**개념 참고:** [U15 모니터링·트러블슈팅](../../dba/chapters/15-monitoring-troubleshooting.md), [M01 Lock Wait](../../dba/labs/operations/manual-fault-scenarios.md#2-m01-lock-wait와-deadlock), [P5 운영 진단 SQL](../../experiments/sql/p5_observe_lock_wait.sql).
+
+## P5-A — 행 Lock Wait 진단
+
+- 별도 `rewardp5db`와 named volume을 사용하고 P2~P4의 사용자·지급 데이터는 읽거나 수정하지 않습니다.
+- `p5_ops.lock_lab` 단일 행에서 세션 A가 `SELECT ... FOR UPDATE`를 실행한 뒤 트랜잭션을 열린 채 둡니다. 세션 B의 UPDATE가 같은 행에서 기다리게 합니다.
+- 읽기 전용 `reward_observer`에 P5 클러스터 범위 `pg_monitor` 권한을 주어 세션·Lock 통계를 관측합니다.
+- `pg_stat_activity`, `pg_blocking_pids()`, `pg_locks`로 Waiter, Blocker, wait event, 트랜잭션 나이와 SQL을 연결합니다.
+- 세션 C에서 같은 행을 SELECT해 이전 committed 값을 읽는지와 지연을 기록합니다.
+- Blocker를 COMMIT한 뒤 B가 끝나는지, 잔액 변화가 한 번인지 확인하고 fixture를 기준값으로 되돌립니다.
+
+## 구현 순서
+
+1. P5 전용 Compose DB, `reward_p5_pgdata`, loopback 포트 55434를 정의합니다.
+2. 읽기 전용 관측 SQL과 단일 행 Lock Wait fixture를 추가합니다. 모든 준비 SQL은 현재 DB가 `rewardp5db`인지 먼저 검사합니다.
+3. 표준 라이브러리와 로컬 `psql`만 사용하는 incident harness로 A/B/C 세션을 순서대로 열고 관측·복구합니다.
+4. 실행 전 가설, 타임라인, 관측된 PID·Wait Event·SQL, 조치, 복구 후 대사와 재발 방지 판단을 P5 실행 기록에 남깁니다.
+
+## 확인할 운영 역량
+
+| 역량 | P5에서 남기는 증거 |
+|---|---|
+| 증상 분류 | Lock wait와 단순 실행 시간을 `wait_event_type`으로 나눔 |
+| 원인 추적 | `pg_blocking_pids()`로 A→B 관계와 각각의 SQL을 연결 |
+| 사용자 영향 판단 | 대기 UPDATE와 동시 SELECT의 응답을 나눠 관찰 |
+| 조치 선택 | 실습 Blocker의 업무 트랜잭션을 확인한 뒤 COMMIT해 대기 해소 |
+| 데이터 정합성 | waiter 반영 횟수와 cleanup 후 기준 잔액을 재확인 |
+| 운영 커뮤니케이션 | 사건 시각·영향·가설·관측·조치·결과·후속 예방을 한 장의 기록에 정리 |
+
+## 설계 결정
+
+| 결정 | 이유 |
+|---|---|
+| UI/API보다 DB 진단 시나리오부터 구현 | P5는 사용자 기능 추가가 아니라 세션·Lock 관측과 대응을 직접 보여주는 단계입니다. |
+| P5 전용 PostgreSQL과 볼륨 | 실험 세션과 fixture를 P2~P4의 실행 환경·데이터에서 격리합니다. |
+| SELECT FOR UPDATE를 Blocker로 사용 | 행을 변경하지 않고 Lock을 보유해, 관측 대상과 데이터 변경 영향을 분리합니다. |
+| 관측 계정은 `pg_monitor`만 추가 | 다른 세션 상태와 통계를 확인하되 P5 업무 테이블 쓰기 권한은 주지 않습니다. |
+| blocker 해소 뒤 fixture를 100으로 복원 | 같은 실습을 반복할 수 있고, 예상 밖 종료 후 상태를 쉽게 대조할 수 있습니다. |
+| SQL 파일과 자동 진행 harness를 함께 제공 | 수동 학습 시 쿼리를 단계별 실행할 수 있고, 포트폴리오 결과는 같은 절차로 다시 수집할 수 있습니다. |
+
+## P5 완료 조건
+
+- [ ] P5 DB가 P2~P4와 다른 DB·볼륨·포트로 기동한다.
+- [ ] A가 `idle in transaction`으로 Lock을 보유하고 B가 `Lock` Wait Event에서 대기한다.
+- [ ] observer 출력에서 B의 blocker PID가 A와 일치하고 양쪽 SQL을 구분한다.
+- [ ] C의 SELECT가 Blocker 종료 전 완료되고 이전 committed 값을 읽는다.
+- [ ] A 조치 후 B가 완료되고 fixture가 기준값 100으로 복구된다.
+- [ ] 실행 시각·명령·버전·관측값·판단·복구·재발 방지 후보를 P5 실행 기록에 남긴다.
