@@ -492,7 +492,7 @@ Harness는 request 시작 전에 Compose project/service labels, published loopb
 | PostgreSQL row Lock | 4개 waiter × 25회, `pg_stat_activity`와 recursive `pg_blocking_pids()` | Hikari pending 없이 Lock wait chain 및 blocker COMMIT 후 요청 완료를 확인 |
 | 느린 SQL | 백만 행 중 2천 건 매치, concurrency4/100요청, baseline과 GIN 후 반복 | `pg_stat_statements`, `EXPLAIN (ANALYZE, BUFFERS)`, API timer를 함께 비교 |
 
-Pool·Lock·scan 응답시간 표본은 각 100개이며 client monotonic duration에서 nearest-rank를 계산합니다. p95는 95번째 순위이고 max는 100번째 순위입니다. Prometheus histogram quantile이나 production SLO 값은 아닙니다. API DB client session은 `pg_stat_activity.leader_pid IS NULL`로 세고 parallel query worker는 별도 process 수로 기록하므로 Hikari max와 혼동하지 않습니다.
+Pool·Lock·scan 응답시간 표본은 각 100개이며 client monotonic duration에서 nearest-rank를 계산합니다. p95는 95번째 순위이고 max는 100번째 순위입니다. API DB client session은 `pg_stat_activity.leader_pid IS NULL`로 세고 parallel query worker는 별도 process 수로 기록합니다.
 
 최종 결과 JSON은 [api_latency_diagnostics_2026-11-23.json](../../experiments/results/api_latency_diagnostics_2026-11-23.json)에 저장했습니다. 기준 plan과 GIN 후 plan을 모두 필요로 해 1회 실행 시 GIN을 추가합니다. 기준 비교를 다시 하려면 전용 lab 프로젝트만 재생성하고 SQL fixture를 다시 준비해야 합니다. 이 절차는 `reward_latency_pgdata`를 지우므로 P2~P5 다른 project/volume 명령에는 적용하지 않습니다.
 

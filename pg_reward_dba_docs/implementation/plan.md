@@ -279,7 +279,7 @@ Primary/Standby·자동 Failover와 PITR/Backup 복원은 P6~P7 운영 실험 �
 - 단일 fixture row의 UPDATE를 4개 요청이 25회 기다리게 하고, `pg_stat_activity`와 recursive `pg_blocking_pids()`로 각 waiter의 blocker 경로를 확인합니다.
 - `marker LIKE '%needle%'`가 실행되는 1,000,000행/2,000 match table을 먼저 순차 스캔으로 측정하고, GIN `pg_trgm` 인덱스 적용 후 같은 API SQL을 다시 측정합니다.
 - Spring HTTP timer와 Hikari 지표, PostgreSQL client backend/parallel worker, wait event, `pg_stat_statements`, `EXPLAIN (ANALYZE, BUFFERS)`를 함께 기록합니다.
-- client latency 100 표본은 nearest-rank로 계산하고, p95와 max 순위를 명시합니다. 운영 percentile이나 production SLO로 사용하지 않습니다.
+- client latency 100 표본은 nearest-rank로 계산하고 p95와 표본 최대 순위를 기록합니다.
 
 ## 구현 순서
 
