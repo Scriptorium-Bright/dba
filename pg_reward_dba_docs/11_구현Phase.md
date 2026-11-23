@@ -2,7 +2,7 @@
 
 ## 1. Phase 총괄
 
-**구현 기록:** P0~P1 실행 기반, P2a/P2b 핵심 구현과 수용 실험, P3 장애 보상·DDL Lock·migration 복구·구버전 API 교차 실행, P4 대량 검색·부분 인덱스·쓰기 비용·동시성 DDL, P5 Lock Wait 진단과 복구를 기록했다. 보상 요청 재전송은 사용자가 직접 확인할 항목으로 남겼다. 전체 TC-001~016과 P1 화면 Gate는 [검증 계획](10_검증및실험계획.md)에서 이어간다. 현재 단계는 [Phase 안내서](implementation/phase-guide.md), 실행 과정은 [구현 기록](implementation/exec.md)에서 확인한다.
+**구현 기록:** P0~P1 서비스 기반, P2 동시 지급·BATCH 재개, P3 장애 보상·migration 복구, P4 대량 검색·인덱스 비용, P5 Lock Wait와 API 지연 진단 결과를 정리했다. phase별 실행 방법은 [Phase 안내서](implementation/phase-guide.md), 변경과 수치는 [구현 기록](implementation/exec.md)에서 확인한다.
 
 | Phase | 목적 | 주요 구현 | 종료 조건 |
 |---|---|---|---|
@@ -19,25 +19,25 @@
 
 ## 2. P0 — 첫 시작
 
-- [ ] PostgreSQL 17 버전 고정, Docker 볼륨·포트·시드 구성.
-- [ ] Git 작업 구조 `frontend/backend/database/migrations/experiments/docs`.
-- [ ] `users/wallets/events/event_recipients/reward_grants/wallet_ledger` 기본 테이블 생성.
-- [ ] `event_policy_audit`, `event_status_audit`, `batch_runs` 테이블 생성.
-- [ ] DB 권한 `app`, `migration`, `observer` 분리(최초엔 최소 동작만).
-- [ ] Flyway V1으로 새 DB 구축 성공.
-- [ ] Spring Boot DB 연결, 트랜잭션 관리 설정, 헬스 체크.
-- [ ] 샘플 유저/이벤트/잔액 생성, API 연결 확인.
+- [x] PostgreSQL 17.12, Docker 볼륨·포트·시드 구성.
+- [x] 프로젝트 디렉터리 `frontend/backend/database/migrations/experiments/pg_reward_dba_docs` 구성.
+- [x] `users/wallets/events/event_recipients/reward_grants/wallet_ledger` 기본 테이블 생성.
+- [x] `event_policy_audit`, `event_status_audit`, `batch_runs` 테이블 생성.
+- [x] DB 권한 `reward_app`, `reward_migration`, `reward_observer` 분리.
+- [x] Flyway migration으로 새 DB 구축.
+- [x] Spring Boot DB 연결, transaction 설정, health check.
+- [x] 샘플 user/event/wallet 생성 및 API 연결 확인.
 
 **Gate:** DB·API를 깨끗한 상태로 재구축하는 명령과 기대 결과 문서화.
 
 ## 3. P1 — 사용자·운영자 화면
 
-- [ ] 이벤트 목록/상세 + CLAIM/BATCH 방식 표시.
-- [ ] 운영자 이벤트 생성(DRAFT), 오픈, 종료.
-- [ ] 사용자 직접 보상 수령 API 연결(초기 구현, P2에서 SP로 확정).
-- [ ] 지갑 Money·Point와 최근 원장 조회.
-- [ ] 성공/중복/거부/결과 미확정 UI 상태 처리.
-- [ ] 운영자에게 BATCH 대상·실행 시각 표시 UI(가볍게).
+- [x] 이벤트 목록/상세와 CLAIM/BATCH mode 표시.
+- [x] 운영자 이벤트 생성(DRAFT), OPEN, CLOSED.
+- [x] 사용자 보상 수령 API와 공용 지급 procedure 연결.
+- [x] 지갑 Money·Point와 원장 조회.
+- [x] 성공·중복·거부·결과 재조회 UI 상태 처리.
+- [x] 운영자 BATCH 대상·예약 시각 표시.
 
 **Gate:** 이벤트 A의 지급 결과가 실제 `reward_grants/wallets/wallet_ledger`에 일치.
 
@@ -54,10 +54,10 @@
 - [x] `event_recipients LEFT JOIN reward_grants`로 미지급자 재조회.
 - [x] 중복 worker 거부, 실행 중 중단·재실행, PostgreSQL 비정상 종료 후 복구.
 - [x] 지급·원장·지갑 검증 SQL과 P2 수용 스크립트 추가.
-- [ ] 이벤트 상태 변경과 지급의 정밀한 경합 타이밍을 별도 부하/Lock 실험으로 확인.
-- [ ] 자동 스케줄러와 1,000명을 초과하는 장시간 작업의 비동기 운영 방식 추가.
+- **후속 설계:** 이벤트 상태 변경과 지급 사이의 경합을 별도 부하·Lock 시나리오로 계측.
+- **후속 설계:** 자동 scheduler와 1,000명 초과 장시간 작업의 batch 정책 수립.
 
-**P2a/P2b Gate:** 100동시 요청, 원자성 롤백, 1,000명 대상별 지급, 중복 worker 방지, crash recovery 뒤 미지급 재개와 DB 대사를 확인했다. **Phase 전체 Gate:** [10_검증및실험계획.md](10_검증및실험계획.md)의 TC-001~016 중 아직 수행하지 않은 사례와 P1 UI 흐름이 남아 있어 완료로 표시하지 않는다.
+**P2a/P2b Gate:** 100 동시 CLAIM, rollback, 1,000명 user별 지급, 중복 worker 거부, SIGKILL 뒤 recovery와 재개를 확인했다. 최종 `recipients/grants/pending=1,000/1,000/0`, grant-ledger 및 wallet-ledger 불일치 0건이었다. 재현 수치는 [P2 실행 기록](implementation/exec/p2a.md)과 [BATCH recovery 기록](implementation/exec/p2b.md)에 있습니다.
 
 ### P2 안에서도 작업 순서
 
@@ -79,16 +79,17 @@ P2b는 배치를 쉽게 이해하기 위한 확장이다. P2a를 마친 직후 �
 - [x] 구버전 API 이미지로 V11 schema에 CLAIM하고 신규 API에서 EVENT 원장 2행·40/10 snapshot을 확인.
 - [x] ADMIN 검색에서 inclusive `from`, exclusive `to`, `beforeId` cursor 동작 확인.
 
-**P3 실습 Gate:** 기존/구버전 CLAIM, 장애 보상 원자성·원장 대사, DDL 대기 사슬, migration 실패/복구, 검색 경계, P2 데이터 분리를 [P3 실행 기록](implementation/exec/p3.md)에서 확인했다. 보상 요청 재전송은 사용자가 직접 확인할 항목으로 남겼다.
+**P3 실습 Gate:** 기존/구버전 CLAIM, 장애 보상 원자성·재시도, DDL 대기 사슬, migration forward fix, 검색 경계, P2 데이터 분리를 [P3 실행 기록](implementation/exec/p3.md)에서 확인했다.
 
 ## 6. P4 — 성능
 
 - [x] P4 전용 DB에 EVENT 990,000행/COMPENSATION 10,000행 fixture 생성 및 wallet/ledger 대사.
 - [x] 인덱스 전 global cursor와 date query에서 filter 제거·parallel sequential scan 확인.
 - [x] source JOIN 분기 가설 측정 후 공통 JOIN 유지, 검증된 source literal로 partial predicate 사용.
-- [x] full source index(30MB)와 부분 cursor/date index(각 672KB) 비교 후 두 부분 인덱스 반영.
-- [x] `EXPLAIN (ANALYZE, BUFFERS)`, 50,000행 INSERT WAL, 인덱스 크기, DDL lock/writer 대기 비교.
+- [x] INCLUDE/key-only 보상 부분 인덱스를 비교해 최종 240KB/328KB로 조정하고, sourceType 미지정 기간 검색에는 all-source date 인덱스(31.5MB) 적용.
+- [x] `EXPLAIN (ANALYZE, BUFFERS)`, 같은 8컬럼·50,000행 4구성 WAL, 인덱스 크기, DDL lock/writer 대기 비교.
 - [x] normal `CREATE INDEX`와 `CREATE INDEX CONCURRENTLY` 관찰 및 P4 API/UI 응답 확인.
+- [x] P4-only Flyway V15 concurrent index migration을 fresh database와 기존 P4 schema에서 검증.
 
 **P4 Gate:** 조회 계획 변경, source별 API 결과, 부분 인덱스 크기, 추가 WAL, DDL 중 writer 동작을 [P4 실행 기록](implementation/exec/p4.md)에 기록했다.
 
@@ -99,12 +100,12 @@ P2b는 배치를 쉽게 이해하기 위한 확장이다. P2a를 마친 직후 �
 - P8: 실험 통합 실행기/운영 CLI/지표·보고서 자동화, 배치 크기 최적화 실험.
 - P9: CloudNativePG(K8s)로 DB 이전, 복구·연결 전환 비교(선택).
 
-## 8. 업무 우선순위
+## 8. 운영·개발 역량 흐름
 
-펄어비스의 DB 설계·SP·버전 관리·패치 요구는 P0~P5에 직접 연결. 커넥트웨이브의 PostgreSQL 운영·백업·복제·CloudNativePG는 P3~P9에 연결. **어느 하나의 회사만을 위한 게임 기능을 추가하지 않는다.**
+P0~P1에서 관계 모델과 서비스 연결을 만들고, P2에서 지급 transaction과 데이터 정합성을 확인합니다. P3는 schema 변경, P4는 실행계획과 index 비용, P5는 session·Lock·API 지연 진단을 다룹니다. P6 이후에는 backup/PITR, replication/failover, 운영 automation을 이어갑니다.
 
 ## 9. 프로젝트 관리 지침
 
-- Phase가 통과하기 전 다음 Phase의 기술 스택만 먼저 대량 도입하지 않는다.
-- 실험 시나리오는 구현 Phase와 별도 추적. 시나리오에서 관측한 문제만 실제 개선/회귀 검증에 반영.
-- 미실행·실측 없음·가정·실제 결과를 모든 문서에서 구분.
+- 각 Phase는 목표·실행 절차·측정값을 정리한 뒤 다음 작업으로 이동.
+- 장애 scenario와 제품 코드 변경을 따로 기록하고, 재현 결과에서 나온 문제를 회귀 확인으로 연결.
+- 가정 fixture와 실제 측정 결과를 구분하고 DB identity·데이터 규모·시각·실행 SQL을 기록.

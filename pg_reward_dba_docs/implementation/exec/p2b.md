@@ -19,7 +19,8 @@
 | `backend/src/main/java/dev/reward/api/RewardController.java`, `ApiModels.java` | 대상 교체, 분포 조회, 수동 실행 API와 응답 제한 | worker 호출을 최대 1,000명으로 제한하고 UI가 결과를 읽게 한다. 헤더 역할은 데모 전용이다. |
 | `frontend/src/App.jsx`, `styles.css` | 대상 ID 입력, 지급/미지급 요약, 최근 실행·오류, 수동 재개 | 기존 운영 관리 화면에서 준비와 실행을 이어서 확인한다. |
 | `experiments/sql/seed_p2b_1000_users.sql`, `verify_p2b_event.sql` | 별도 ID 범위 사용자 생성과 분포/지갑/원장 대사 | 데모 사용자를 덮지 않고 지급 결과를 DB에서 확인한다. |
-| `experiments/p2_acceptance.py`, `experiments/README.md` | 1,000명, 중복 worker, crash/recovery/retry 실험 | 강제 종료는 해당 실험 컨테이너에 한정하고 named volume은 삭제하지 않는다. |
+| `experiments/p2_acceptance.py`, `experiments/README.md` | 1,000명, 중복 worker, crash/recovery/retry 실험 | 강제 종료는 해당 실험 컨테이너에 한정하며 named volume의 데이터를 유지한다. |
+| `experiments/sql/p2_install_tx_isolation_observer.sql`, `p2_remove_tx_isolation_observer.sql` | BATCH grant 행에서 transaction 설정·실행 역할을 임시 기록 | 사용자별 `TransactionTemplate`이 DB 기본값에 우연히 기대지 않는지 실제 insert로 확인한다. 계측은 acceptance에만 쓰며 처리량 비교에서는 제거한다. |
 
 ## 의사결정
 
@@ -57,6 +58,12 @@ V12에서 지급 프로시저를 `SECURITY DEFINER`로 바꾸고 reward_app의 w
 | grant-ledger / wallet-ledger 불일치 | 0 / 0 |
 
 PostgreSQL 로그에서 비정상 종료, automatic recovery, REDO 완료와 ready 상태를 확인했다. 종료 신호와 recovery 사이에 추가 커밋이 생겨 701건 관측 이후 복구 완료 시점에는 796건이었고, 실제 미지급 204명을 다시 계산해 처리했다. 최종 SQL은 `1000|1000|0|0|0`을 반환했다.
+
+### REPEATABLE READ 기본값 아래 사용자별 배치 transaction 확인
+
+2026-11-23 별도 재검증에서는 P2 `rewarddb`의 DB 기본 격리 수준을 `REPEATABLE READ`로 일시 변경하고 API를 새로 시작했습니다. event 145의 BATCH 1,000건을 처리하는 동안 grant insert에 설치한 임시 observer는 1,000행 모두 `read committed | reward_app | reward_migration`을 기록했습니다. 첫 실행 600건, 이어서 남은 400건, 동일 이벤트 중복 worker는 HTTP 409였습니다. 최종 대사는 `1000|1000|0|0|0`이었고 지갑·원장 불일치는 없었습니다.
+
+계측 trigger와 관측 테이블을 제거하고 DB 기본값을 `READ COMMITTED`로 복구한 뒤 API를 다시 시작했습니다. 이는 강제 종료를 포함한 Crash Recovery 측정과 별개인 isolation boundary acceptance입니다. 매 grant마다 관측 테이블 INSERT가 추가되어 처리 시간 비교에는 사용하지 않았습니다.
 
 ## 다음 실험
 

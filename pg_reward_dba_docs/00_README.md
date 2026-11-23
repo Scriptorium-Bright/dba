@@ -1,60 +1,54 @@
-# PostgreSQL 이벤트 보상 DB 운영 프로젝트 — 문서 인덱스
+# PostgreSQL 보상 데이터베이스 운영 실습 — 문서 인덱스
 
-- **문서 버전:** 설계 기준 v2.0 (2026-11-21)
-- **상태:** P0~P1 기능 구현, P2a/P2b 핵심 인수 실험, P3 보상·migration·Lock 실습, P4 대량 ledger 검색·인덱스 실습, P5 운영 진단·Lock Wait 대응을 기록했다. 보상 요청 재전송은 사용자 실습으로 남겼으며, 전체 TC-001~016 및 P1 UI Gate는 계속 추적한다. 현재 단계 소개는 [Phase 안내](implementation/phase-guide.md), phase별 변경과 결과는 [구현 기록](implementation/exec.md)을 참고한다. 채용 공고에 맞춘 제출용 정리는 [포트폴리오 문서](portfolio/README.md)에서 시작한다.
-- **대상 직무:** DBA / Database Engineer (펄어비스의 DB 객체·SP·패치 업무와 커넥트웨이브의 PostgreSQL 운영·복구·튜닝 업무를 함께 고려)
-- **우선 작업:** P5 Lock Wait 진단 기록을 참고하고 다음 단계에서 Backup/PITR 복원과 대사를 진행한다.
+- **문서 기준:** 설계 v2.0, 2026-11-21
+- **현재 구현:** P0~P1 서비스와 모델, P2 동시 지급·BATCH 재개, P3 장애 보상·schema 배포, P4 100만 건 조회 튜닝, P5 Lock Wait·API 지연 진단
+- **기술 구성:** PostgreSQL 17.12, Spring Boot/JDBC, React, Docker Compose, Flyway, Python 실험 harness
+- **시작점:** [Phase 안내](implementation/phase-guide.md)에서 환경과 실습 순서를 확인하고 [구현 기록](implementation/exec.md)에서 변경과 측정 결과를 읽습니다.
 
-## 읽는 순서
+## 설계·운영 문서
 
-| 파일 | 질문 |
+| 파일 | 주제 |
 |---|---|
-| [01_도메인.md](01_도메인.md) | 사용자는 무엇을 하고, 이벤트는 어떻게 지급되나? |
-| [02_요구사항분석서.md](02_요구사항분석서.md) | 기능·비기능 요구사항, 예외, 완료 기준은? |
-| [03_프로젝트설계서.md](03_프로젝트설계서.md) | 어떤 문제를 다루고, 앱과 DB의 책임을 어떻게 나누나? |
-| [04_아키텍처.md](04_아키텍처.md) | 구성요소, 연결 경로, Phase별 토폴로지는? |
-| [05_테이블설계서.md](05_테이블설계서.md) | 초기 ERD·DDL·키·트랜잭션·향후 마이그레이션은? |
-| [06_시나리오목록.md](06_시나리오목록.md) | 어떤 사건을 어떤 순서로 재현·분석·개선하나? |
-| [07_DBA_운영런북.md](07_DBA_운영런북.md) | DBA가 장애·복구·재처리를 어떻게 수행하나? |
-| [08_모니터링및진단.md](08_모니터링및진단.md) | 어디에서 성공·실패·Lock·WAL·지연을 확인하나? |
-| [09_DB변경배포계획.md](09_DB변경배포계획.md) | 스키마·SP 변경의 사전 검수·전개·실패 대응은? |
-| [10_검증및실험계획.md](10_검증및실험계획.md) | 테스트 입력, 기대 결과, 증거, 반복 측정 기준은? |
-| [11_구현Phase.md](11_구현Phase.md) | 어떤 순서로 구현하고, 각 Phase의 종료 조건은? |
-| [12_설계결정기록.md](12_설계결정기록.md) | 기존 설계에서 무엇을 왜 바꿨나? 미확정 사항은? |
-| [13_포트폴리오증거.md](13_포트폴리오증거.md) | 완성 후 무엇을 증명하고 어떻게 공개하나? |
-| [14_용어및공식참조.md](14_용어및공식참조.md) | PostgreSQL과 일반 DB 용어·공식 근거는? |
-| [15_Stored_Procedure_설계.md](15_Stored_Procedure_설계.md) | 지급 SP를 실제 SQL로 어떻게 설계하고 호출하나? |
-| [implementation/plan.md](implementation/plan.md) | P0~P1, P2a/P2b, P3의 구현 전 범위와 결정을 어떻게 정했나? |
-| [implementation/exec.md](implementation/exec.md) | 구현 후 어떤 변경을 했고 무엇이 남았나? |
-| [implementation/phase-guide.md](implementation/phase-guide.md) | 현재 P5가 무엇을 다루고 DB·SQL로 어떻게 확인하나? |
-| [portfolio/README.md](portfolio/README.md) | 프로젝트를 공고에 맞춰 어떤 순서로 소개하고 어떤 증거를 보여주나? |
-| [portfolio/직무요건_매핑.md](portfolio/직무요건_매핑.md) | 공고의 업무·역량과 phase별 결과가 어떻게 연결되나? |
-| [portfolio/발표와_면접_가이드.md](portfolio/발표와_면접_가이드.md) | 3분 발표와 DB 기술 질문을 어떻게 준비하나? |
+| [01_도메인.md](01_도메인.md) | 이벤트 보상, CLAIM/BATCH, 지갑과 원장 관계 |
+| [02_요구사항분석서.md](02_요구사항분석서.md) | 기능·비기능 요구와 인수 기준 |
+| [03_프로젝트설계서.md](03_프로젝트설계서.md) | 데이터 흐름과 업무 규칙 |
+| [04_아키텍처.md](04_아키텍처.md) | React, Spring Boot, PostgreSQL, migration·관측 연결 |
+| [05_테이블설계서.md](05_테이블설계서.md) | ERD, 키, 제약, 정규화와 의도한 중복 |
+| [06_시나리오목록.md](06_시나리오목록.md) | 장애·변경·조회 실험 시나리오와 입력 |
+| [07_DBA_운영런북.md](07_DBA_운영런북.md) | 지급 확인, 재처리, Lock 대응, 백업 복원 절차 |
+| [08_모니터링및진단.md](08_모니터링및진단.md) | API·Hikari·PostgreSQL 지표와 관측 SQL |
+| [09_DB변경배포계획.md](09_DB변경배포계획.md) | Flyway 배포, 데이터 검증, 실패 복구 |
+| [10_검증및실험계획.md](10_검증및실험계획.md) | 인수 조건, 실행 절차, 결과 기록 방식 |
+| [11_구현Phase.md](11_구현Phase.md) | phase 순서와 완료 기준 |
+| [12_설계결정기록.md](12_설계결정기록.md) | 데이터 모델·트랜잭션·인덱스 선택 이유 |
+| [13_운영실습_증거.md](13_운영실습_증거.md) | 재현 절차, 원본 결과, 운영 변경 이력을 연결하는 방법 |
+| [14_용어및공식참조.md](14_용어및공식참조.md) | PostgreSQL 개념과 공식 문서 링크 |
+| [15_Stored_Procedure_설계.md](15_Stored_Procedure_설계.md) | 지급 procedure의 입력, 상태 결과, 트랜잭션 |
 
-## 최종 방향 요약
+## 구현과 실행
 
-- **도메인:** 게임 이벤트 보상. 게임머니(`MONEY`)와 포인트(`POINT`)를 한 지갑에서 별도 잔액으로 관리한다. 둘 다 **가상 게임 재화**이며 현금 결제를 포함하지 않는다.
-- **지급 경로 두 가지:** ① 사용자가 버튼으로 수령하는 `CLAIM` ② 정해진 대상에게 예약된 시각에 일괄 지급하는 `BATCH`.
-- **공통 저장 모델:** 두 경로 모두 `reward_grants`에 실제 커밋된 지급을 기록하고, `wallet_ledger`에 재화 종류별 원장을 남긴다. `event_recipients`는 일괄 지급의 *대상자 명단*이다.
-- **초기 운영:** React → Spring Boot → 단일 PostgreSQL. Flyway와 관측·실험 도구는 별도 관리 연결.
-- **확장 운영:** PostgreSQL Primary/Standby, 장애 관리, 연결 전환, WAL 아카이브 및 복원 환경.
-- **시나리오:** 정상 지급 → 일괄 지급 중 장애 → Crash Recovery 후 미지급 재처리 → 장애 보상 도입을 위한 변경 배포 → 지급 이력 조회 지연·DDL Lock → idle transaction Lock Wait 진단 → PITR → 복제 지연/Failover → 운영 자동화.
-- **측정 원칙:** API 응답, DB 커밋, 실제 잔액·원장, DB 내부 지표는 구분. p95는 SQL/서비스 성능을 평가할 때 선택적으로 사용하며 DBA의 필수 지표는 아니다.
+| 파일 | 내용 |
+|---|---|
+| [implementation/plan.md](implementation/plan.md) | 실행 전 범위, 설계 선택, phase별 확인 항목 |
+| [implementation/exec.md](implementation/exec.md) | phase별 변경 파일, 코드 주석, 결정 이유와 결과 |
+| [implementation/phase-guide.md](implementation/phase-guide.md) | 서버·UI·API·SQL 실습 안내와 포트 |
+| [../experiments/README.md](../experiments/README.md) | 데이터 fixture, 재현 harness, 결과 파일 설명 |
 
-## 이 문서가 이전 설계에서 변경한 사항
+## 프로젝트 흐름
 
-1. `wallets`에 단일 `point_balance`만 둔 설계 → `money_balance` + `point_balance`.
-2. 사용자 직접 수령만 존재 → 직접 수령과 예약 일괄 지급을 모두 표현.
-3. `reward_claims` 중심 명명 → 통합 지급 완료 테이블 **`reward_grants`**로 정리. 이전 SQL 초안은 이 문서 집합의 **권위 있는 구현 명세가 아니다**.
-4. 정상 지급만 설명 → 지급 시도 결과와 실제 커밋 결과를 분리, `UNKNOWN` 응답 재확인 포함.
-5. HA가 먼저인 설계 → P0~P2 서비스·DB 기본 구현, 그 후 운영 실험과 변경 개선.
-6. 장애가 나면 단순 재실행 → WAL/체크포인트 기반 **DBMS Crash Recovery**와 대상자 대조 기반 **업무 재처리**를 구분.
-7. `ALTER TABLE`은 항상 대량 UPDATE한다는 가정 삭제 → 메타데이터 변경·실제 Backfill을 구분.
-8. 배치 크기 고정 가정 삭제 → 실제 트랜잭션 지속시간·처리량·재작업 비용을 측정해 선택.
+```text
+CLAIM/BATCH 지급
+  → reward_grants 업무 지급 사실
+  → wallets 현재 잔액 + wallet_ledger 변동 기록
+  → 대사 SQL로 지급·잔액 정합성 확인
+```
 
-## 설계 관리 원칙
+현재 실습은 동시 요청, 사용자 단위 커밋, PostgreSQL Crash Recovery, forward-only schema 변경, 100만 행 실행계획, 인덱스 비용, Hikari pool 포화, row Lock wait, 느린 SQL을 순서대로 다룹니다. P2~P5 실행 수치와 재현 파일은 각 phase의 실행 기록에서 확인합니다.
 
-- 아래 예시 수치와 사건 시간은 **가정**이다. 실행 후 관측한 데이터만 결과로 기재한다.
-- 각 실험은 `초기 상태 → 관측 → 원인 가설 → 수정 → 같은 조건으로 재검증` 순서로 기록한다.
-- 불확실한 정책은 [12_설계결정기록.md](12_설계결정기록.md)의 Open Decision에서 확정한다.
-- 화면상의 장애 주입 기능은 만들지 않는다. 위험 작업은 격리된 개발 환경 CLI에서만 수행한다.
+## 기록 기준
+
+- 실험 결과에는 DB 버전, 데이터 행 수, 실행 SQL·도구, 시각, 반환 행과 정합성 확인을 함께 기록합니다.
+- 실행계획은 actual rows, filter 제거 행, buffers와 index definition을 포함합니다.
+- API 응답 시간, SQL 실행 시간, Hikari wait, PostgreSQL wait event를 측정 구간별로 구분합니다.
+- reset·DROP·SIGKILL 같은 작업은 이름이 고정된 로컬 disposable 환경과 SQL guard를 사용합니다.
+- 설계 변경은 [12_설계결정기록.md](12_설계결정기록.md)에 배경·선택·운영 영향을 남깁니다.

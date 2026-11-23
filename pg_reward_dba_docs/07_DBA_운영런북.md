@@ -1,19 +1,19 @@
 # 07. DBA 운영 런북(Runbook)
 
-**목적:** 개발실험 환경에서 진단·조치·복구 작업을 동일한 절차로 재현한다. 위험 명령을 실제 서비스에 실행하기 위한 문서가 아니다.
+**목적:** 개발 실험 환경에서 진단·조치·복구 작업을 동일한 절차로 재현하고 실행 결과를 기록한다.
 
 ## 1. 표준 운영 점검
 
 | 확인 대상 | 조회/점검 위치 | 정상 여부 판단 |
 |---|---|---|
-| DB 연결 | `pg_isready`, API 오류율 | 접속 가능 / 접속 오류가 없는지 |
-| DB 세션 | `pg_stat_activity` | 장시간 실행·Lock 대기 식별 |
+| DB 연결 | `pg_isready`, API 오류율 | 접속 상태와 오류율 추이 |
+| DB 세션 | `pg_stat_activity` | 장시간 실행·Lock 대기와 관련 SQL |
 | SQL 실행 | `pg_stat_statements`, Slow SQL 로그 | 누적 시간·빈도·평균 실행 시간 |
-| 장기 트랜잭션 | `pg_stat_activity.xact_start` | 비정상적으로 오래 유지되는지 |
+| 장기 트랜잭션 | `pg_stat_activity.xact_start` | 시작 시각·세션 상태·대기 관계 |
 | 테이블 통계 | `pg_stat_user_tables` | 대량 변경, Dead Tuple 경향 |
 | WAL·복제 | `pg_stat_replication`, Standby LSN | 전송·쓰기·플러시·재생 상태 |
 | 아카이브 | `pg_stat_archiver` + 저장소 파일 | 아카이브 실패·연속성 확인 |
-| 백업 | 실제 복원 테스트 결과 | 파일 존재만으로 성공 판단하지 않음 |
+| 백업 | 실제 복원 테스트 결과 | 복원 시간과 업무 데이터 대사 |
 
 ## 2. 사고 대응 기본 절차
 
@@ -24,7 +24,7 @@
 5. **복구 전략 선택:** 단일 인스턴스 재시작 / Failover / PITR 등 사고 유형별로 선택.
 6. **복구 검증:** DB 쓰기 성공뿐 아니라 `reward_grants`, `wallet_ledger`, `wallets` 대조.
 7. **업무 재처리:** `event_recipients`에서 미지급 대상 조회 후 안정적인 request_id로 실행.
-8. **사후 보고:** 타임라인, 원인, 조치, 증거, 재발 방지·미검증 위험 기록.
+8. **사후 보고:** 타임라인, 원인, 조치, 증거, 재발 방지 항목을 기록.
 
 ## 3. S01 — 일괄 지급 중 DB 중단
 
@@ -44,7 +44,7 @@
 
 - PostgreSQL 재시작 로그에서 Crash Recovery와 WAL REDO 관련 기록 확인.
 - 커밋된 WAL 기록 및 원래 데이터 볼륨이 보존되었다는 조건을 명시.
-- CHECKPOINT는 복구 시작 지점을 제공; 지급 대상 1000명의 완료 현황을 직접 관리하지 않음.
+- CHECKPOINT는 WAL REDO 시작 지점을 제공한다. 지급 대상 1000명의 완료 현황은 `event_recipients`와 `reward_grants`를 대조해 계산한다.
 
 ### 업무 복구
 
