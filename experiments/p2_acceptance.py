@@ -72,6 +72,37 @@ def psql_file(filename, variables=None):
     return docker(command, stdin=sql)
 
 
+def transaction_isolation_observation(event_id, expected_grants):
+    """Check the trigger's transaction-local setting for this event's real grant rows."""
+    query = f"""
+        SELECT count(*),
+               string_agg(DISTINCT transaction_isolation, ',' ORDER BY transaction_isolation),
+               string_agg(DISTINCT session_user_name, ',' ORDER BY session_user_name),
+               string_agg(DISTINCT current_user_name, ',' ORDER BY current_user_name)
+        FROM reward.p2_tx_isolation_observation
+        WHERE event_id = {int(event_id)};
+    """
+    result = docker([
+        "exec", "-T", "db", "psql", "-X", "-U", "reward_bootstrap", "-d", "rewarddb",
+        "-A", "-t", "-F", "|", "-c", query,
+    ])
+    values = result.stdout.strip().split("|")
+    if len(values) != 4 or values != [
+        str(expected_grants), "read committed", "reward_app", "reward_migration"
+    ]:
+        raise RuntimeError(
+            "actual reward grant transaction isolation/roles differ from the explicit contract: "
+            f"{values}; expected grant count {expected_grants}, READ COMMITTED, "
+            "reward_app session and reward_migration definer"
+        )
+    return {
+        "grantRows": int(values[0]),
+        "transactionIsolation": values[1],
+        "sessionUser": values[2],
+        "currentUser": values[3],
+    }
+
+
 def iso(value):
     return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -157,6 +188,7 @@ def p2a():
         )
 
     request_id_race = p2a_request_id_race(claim_with_key)
+    isolation_observation = transaction_isolation_observation(event_id, 1)
 
     print(json.dumps({
         "eventId": event_id,
@@ -168,6 +200,7 @@ def p2a():
         "rollbackWalletUnchanged": before == after,
         "rollbackSql": rollback_sql.stdout.strip().splitlines()[-1],
         "concurrentRequestIdRace": request_id_race,
+        "transactionIsolationObservation": isolation_observation,
     }, ensure_ascii=False, indent=2))
 
 
@@ -454,6 +487,7 @@ def p2b(crash_after_first_page=False):
     expected = "1000|1000|0|0|0"
     if expected not in integrity.stdout:
         raise RuntimeError(f"지급/원장/지갑 SQL 검증이 예상과 다릅니다: {integrity.stdout.strip()}")
+    isolation_observation = transaction_isolation_observation(event_id, 1000)
 
     print(json.dumps({
         "eventId": event_id,
@@ -469,6 +503,7 @@ def p2b(crash_after_first_page=False):
             "pending": distribution["pendingCount"],
         },
         "integritySql": integrity.stdout.strip(),
+        "transactionIsolationObservation": isolation_observation,
         "crashRecoveryExecuted": crash_after_first_page,
     }, ensure_ascii=False, indent=2))
 
