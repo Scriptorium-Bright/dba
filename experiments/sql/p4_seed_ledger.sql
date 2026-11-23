@@ -1,9 +1,9 @@
--- P4 fixture: 1,000,000 ledger rows in an isolated rewardp4db.
+-- P4 fixture: 1,000,000 ledger rows in the isolated query database or dedicated Flyway probe.
 -- 990,000 EVENT rows and 10,000 COMPENSATION rows (1%); each user ends at Money 10,000.
 DO $guard$
 BEGIN
-    IF current_database() <> 'rewardp4db' THEN
-        RAISE EXCEPTION 'P4 bulk seed is restricted to rewardp4db';
+    IF current_database() NOT IN ('rewardp4db', 'rewardp4_flyway_populated_probe') THEN
+        RAISE EXCEPTION 'P4 bulk seed is restricted to the P4 database and its named disposable Flyway probe';
     END IF;
     IF EXISTS (SELECT 1 FROM reward.wallet_ledger) THEN
         RAISE EXCEPTION 'P4 fixture expects an empty wallet_ledger';

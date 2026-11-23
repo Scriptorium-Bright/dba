@@ -1,0 +1,57 @@
+Fresh P4 Flyway deployment verification
+Date: 2026-11-23 KST (container logs are UTC)
+
+Runtime under test
+------------------
+- Spring Boot 3.5.16
+- Flyway Core / PostgreSQL database module 11.7.2
+- PostgreSQL 17.12
+- P4 Flyway locations: classpath:db/migration, classpath:db/p4-migration
+- V15 script setting: executeInTransaction=false
+- P4 Spring Boot setting: spring.flyway.postgresql.transactional-lock=false
+
+Fresh-database run
+------------------
+A disposable database named rewardp4_flyway_probe began with an empty reward schema. The P4
+API image applied V1 through V15. Flyway logged V15 as `[non-transactional]`, applied all 15
+migrations in 0.116 seconds, and the non-web verification process exited after application startup.
+The Spring Boot log reported `Started RewardApplication`.
+
+Schema-history query on the fresh database returned:
+
+| version | description | success | installed_by | execution_time |
+|---:|---|---|---|---:|
+| 15 | add wallet ledger search indexes | true | reward_migration | 7 ms |
+| 14 | harden local reset search paths | true | reward_migration | 1 ms |
+| 13 | reject compensation payload conflicts | true | reward_migration | 3 ms |
+
+All three V15 indexes were present, `indisready=true`, `indisvalid=true`, and exactly matched the
+expected definitions. The empty-table size was 8,192 bytes each:
+
+- `wallet_ledger_compensation_cursor_idx`: `(id DESC)` where `source_type='COMPENSATION'`
+- `wallet_ledger_compensation_created_idx`: `(created_at DESC, id DESC)` with the same predicate
+- `wallet_ledger_any_source_created_idx`: `(created_at DESC, id DESC)` without a predicate
+
+Existing P4 database
+--------------------
+The existing `rewardp4db` already had the same three indexes from the earlier psql experiment.
+Flyway V15 skipped those names through `IF NOT EXISTS`, verified their definitions and catalog
+flags in the migration, recorded V15, and started the API. The existing index sizes remained
+245,760 bytes, 335,872 bytes, and 31,522,816 bytes respectively.
+
+Initial configuration finding
+------------------------------
+An earlier fresh-database attempt used only `executeInTransaction=false`. It reached V15 but
+waited on `Lock/virtualxid`; `pg_blocking_pids()` identified a Flyway session idle in transaction
+while selecting schema history. That attempt did not include Flyway's PostgreSQL
+`transactional.lock=false` setting and is not the final migration configuration.
+
+Flyway's PostgreSQL transactional advisory lock was then disabled for the P4 application with
+`spring.flyway.postgresql.transactional-lock=false`, while retaining per-script
+`executeInTransaction=false`. Repeating the same fresh-database path completed V15 and verified
+all indexes as ready and valid.
+
+Cleanup
+-------
+The disposable probe database was removed after collecting the schema-history and catalog
+output. The P4 API remains on Flyway V15 and its independent `reward_p4_pgdata` volume.

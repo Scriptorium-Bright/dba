@@ -1,0 +1,52 @@
+{
+  "date": "2026-11-23",
+  "scope": "P4 Compose combines shared migrations and the P4-only concurrent-index location",
+  "versionPlan": {
+    "sharedBefore": "V1-V14",
+    "p4Indexes": "V15",
+    "sharedRequestIdContract": "V16",
+    "combinedVersionsUnique": true
+  },
+  "existingP4Database": {
+    "database": "rewardp4db",
+    "previousLatest": {
+      "version": "15",
+      "description": "add wallet ledger search indexes",
+      "success": true
+    },
+    "flywayValidatedMigrations": 16,
+    "appliedMigration": {
+      "version": "16",
+      "description": "enforce global payout request ids",
+      "success": true,
+      "executionTimeMs": 969
+    },
+    "apiStarted": true
+  },
+  "freshP4Database": {
+    "database": "rewardp4freshdb",
+    "startingSchema": "empty",
+    "flywayValidatedMigrations": 16,
+    "appliedMigrationCount": 16,
+    "finalVersion": "16",
+    "migrationTotalExecutionTimeMs": 128,
+    "p4IndexMigration": {
+      "version": "15",
+      "type": "non-transactional",
+      "indexes": [
+        "wallet_ledger_compensation_cursor_idx",
+        "wallet_ledger_compensation_created_idx",
+        "wallet_ledger_any_source_created_idx"
+      ],
+      "allReady": true,
+      "allValid": true
+    },
+    "sharedMigration": {
+      "version": "16",
+      "description": "enforce global payout request ids",
+      "success": true
+    },
+    "apiStarted": true,
+    "removedAfterCapture": true
+  }
+}

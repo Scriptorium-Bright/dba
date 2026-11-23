@@ -36,8 +36,12 @@ services:
       SPRING_FLYWAY_URL: jdbc:postgresql://db:5432/rewardp4db?currentSchema=reward
       SPRING_FLYWAY_USER: reward_migration
       SPRING_FLYWAY_PASSWORD: ${P4_DB_MIGRATION_PASSWORD:-p4_migration_local_only}
+      # Concurrent index builds run in a P4-only Flyway location outside a transaction.
+      SPRING_FLYWAY_LOCATIONS: classpath:db/migration,classpath:db/p4-migration
+      SPRING_FLYWAY_POSTGRESQL_TRANSACTIONAL_LOCK: "false"
       # P4 measures the P3 admin payout query over a large ledger fixture.
-      SPRING_FLYWAY_TARGET: ${P4_FLYWAY_TARGET:-11}
+      # P4도 별도 DB이므로 같은 승인된 migration 버전으로 올린다.
+      SPRING_FLYWAY_TARGET: ${P4_FLYWAY_TARGET:-16}
       APP_ALLOWED_ORIGIN: http://127.0.0.1:5176
       APP_DEMO_WALLET_RESET_ENABLED: ${APP_DEMO_WALLET_RESET_ENABLED:-true}
       APP_P3_COMPENSATION_ENABLED: "true"

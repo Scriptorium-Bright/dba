@@ -1,5 +1,5 @@
 -- Run this file with psql outside an explicit BEGIN/COMMIT transaction.
--- P4 final indexes keep rare COMPENSATION rows small and support both ID and time searches.
+-- P4 final indexes support both the rare-source compensation searches and any-source date searches.
 DO $guard$
 BEGIN
     IF current_database() <> 'rewardp4db' THEN
@@ -8,12 +8,14 @@ BEGIN
 END;
 $guard$;
 
-CREATE INDEX CONCURRENTLY wallet_ledger_compensation_cursor_idx
+CREATE INDEX CONCURRENTLY IF NOT EXISTS wallet_ledger_compensation_cursor_idx
     ON reward.wallet_ledger (id DESC)
-    INCLUDE (user_id, compensation_id, currency_type, amount, created_at)
     WHERE source_type = 'COMPENSATION';
 
-CREATE INDEX CONCURRENTLY wallet_ledger_compensation_created_idx
+CREATE INDEX CONCURRENTLY IF NOT EXISTS wallet_ledger_compensation_created_idx
     ON reward.wallet_ledger (created_at DESC, id DESC)
-    INCLUDE (user_id, compensation_id, currency_type, amount)
     WHERE source_type = 'COMPENSATION';
+
+-- The API permits sourceType to be omitted; this full index serves date windows across both sources.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS wallet_ledger_any_source_created_idx
+    ON reward.wallet_ledger (created_at DESC, id DESC);

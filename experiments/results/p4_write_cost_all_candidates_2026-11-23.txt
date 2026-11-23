@@ -1,0 +1,78 @@
+DO
+DROP TABLE
+DROP TABLE
+DROP TABLE
+DROP TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+CREATE INDEX
+                                                             QUERY PLAN                                                             
+------------------------------------------------------------------------------------------------------------------------------------
+ Insert on p4_write_probe_baseline  (cost=0.00..2500.00 rows=0 width=0) (actual time=76.204..76.205 rows=0 loops=1)
+   Buffers: shared hit=150772 read=1 dirtied=655 written=657
+   WAL: records=100137 bytes=8857500
+   ->  Function Scan on generate_series n  (cost=0.00..2500.00 rows=50000 width=112) (actual time=1.940..11.580 rows=50000 loops=1)
+ Planning Time: 0.063 ms
+ Execution Time: 76.469 ms
+(6 rows)
+
+                                                             QUERY PLAN                                                             
+------------------------------------------------------------------------------------------------------------------------------------
+ Insert on p4_write_probe_indexed  (cost=0.00..2500.00 rows=0 width=0) (actual time=76.005..76.006 rows=0 loops=1)
+   Buffers: shared hit=152584 read=3 dirtied=675 written=675
+   WAL: records=101153 bytes=9010900
+   ->  Function Scan on generate_series n  (cost=0.00..2500.00 rows=50000 width=112) (actual time=2.099..11.644 rows=50000 loops=1)
+ Planning Time: 0.062 ms
+ Execution Time: 76.205 ms
+(6 rows)
+
+                                                             QUERY PLAN                                                             
+------------------------------------------------------------------------------------------------------------------------------------
+ Insert on p4_write_probe_key_only  (cost=0.00..2500.00 rows=0 width=0) (actual time=73.589..73.589 rows=0 loops=1)
+   Buffers: shared hit=152111 read=3 dirtied=666 written=666
+   WAL: records=101144 bytes=8938060
+   ->  Function Scan on generate_series n  (cost=0.00..2500.00 rows=50000 width=112) (actual time=5.424..14.933 rows=50000 loops=1)
+ Planning Time: 0.063 ms
+ Execution Time: 73.778 ms
+(6 rows)
+
+                                                             QUERY PLAN                                                             
+------------------------------------------------------------------------------------------------------------------------------------
+ Insert on p4_write_probe_any_source_date  (cost=0.00..2500.00 rows=0 width=0) (actual time=148.908..148.909 rows=0 loops=1)
+   Buffers: shared hit=251180 read=2 dirtied=1000 written=1001
+   WAL: records=150480 bytes=13697000
+   ->  Function Scan on generate_series n  (cost=0.00..2500.00 rows=50000 width=112) (actual time=6.037..16.207 rows=50000 loops=1)
+ Planning Time: 0.068 ms
+ Execution Time: 149.189 ms
+(6 rows)
+
+            relname             | total_size 
+--------------------------------+------------
+ p4_write_probe_any_source_date | 8032 kB
+ p4_write_probe_baseline        | 5272 kB
+ p4_write_probe_indexed         | 5432 kB
+ p4_write_probe_key_only        | 5360 kB
+(4 rows)
+
+             indexrelname              |  size   
+---------------------------------------+---------
+ p4_write_probe_any_source_created_idx | 2760 kB
+ p4_write_probe_any_source_date_pkey   | 1112 kB
+ p4_write_probe_created_idx            | 80 kB
+ p4_write_probe_cursor_idx             | 80 kB
+ p4_write_probe_indexed_pkey           | 1112 kB
+ p4_write_probe_key_only_created_idx   | 48 kB
+ p4_write_probe_key_only_cursor_idx    | 40 kB
+ p4_write_probe_key_only_pkey          | 1112 kB
+(8 rows)
+
+DROP TABLE
+DROP TABLE
+DROP TABLE
+DROP TABLE

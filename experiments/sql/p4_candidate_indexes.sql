@@ -9,11 +9,9 @@ $guard$;
 
 CREATE INDEX p4_candidate_comp_cursor_idx
     ON reward.wallet_ledger (id DESC)
-    INCLUDE (user_id, compensation_id, currency_type, amount, created_at)
     WHERE source_type = 'COMPENSATION';
 CREATE INDEX p4_candidate_comp_created_idx
     ON reward.wallet_ledger (created_at DESC, id DESC)
-    INCLUDE (user_id, compensation_id, currency_type, amount)
     WHERE source_type = 'COMPENSATION';
 
 ANALYZE reward.wallet_ledger;

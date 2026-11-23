@@ -1,0 +1,22 @@
+{
+  "generatedAtUtc": "2026-11-22T18:58:57.887962+00:00",
+  "composeProject": "reward-p4",
+  "database": "rewardp4db",
+  "scratchTable": "reward.p4_index_failure_probe",
+  "firstIndexAfterBuild": "reward.p4_index_failure_probe_sequence_idx|true|true",
+  "expectedSecondBuildFailure": "ERROR:  could not create unique index \"p4_index_failure_probe_unique_idx\"\nDETAIL:  Key (duplicate_key)=(7) is duplicated.",
+  "catalogAfterFailure": [
+    "reward.p4_index_failure_probe_sequence_idx|true|true",
+    "reward.p4_index_failure_probe_unique_idx|false|false"
+  ],
+  "recovery": [
+    "DROP INDEX CONCURRENTLY reward.p4_index_failure_probe_unique_idx",
+    "remove one duplicate key from the disposable table",
+    "CREATE UNIQUE INDEX CONCURRENTLY reward.p4_index_failure_probe_unique_idx"
+  ],
+  "catalogAfterRepair": [
+    "reward.p4_index_failure_probe_sequence_idx|true|true",
+    "reward.p4_index_failure_probe_unique_idx|true|true"
+  ],
+  "scratchTableCleanup": "removed"
+}

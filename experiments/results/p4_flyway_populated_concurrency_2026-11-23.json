@@ -1,0 +1,84 @@
+{
+  "generatedAtUtc": "2026-11-23T00:38:21.429053+00:00",
+  "database": "rewardp4_flyway_populated_probe",
+  "ledgerRows": 1000000,
+  "sourceRows": {
+    "EVENT": 990000,
+    "COMPENSATION": 10000
+  },
+  "walletLedgerMismatches": 0,
+  "ledgerUsersWithoutWallet": 0,
+  "postCleanupReconciliation": {
+    "walletLedgerMismatches": 0,
+    "ledgerUsersWithoutWallet": 0
+  },
+  "stagedIndexesBeforeFlyway": {
+    "builds": [
+      {
+        "name": "wallet_ledger_compensation_cursor_idx",
+        "result": "CREATE INDEX"
+      },
+      {
+        "name": "wallet_ledger_compensation_created_idx",
+        "result": "CREATE INDEX"
+      }
+    ],
+    "catalog": [
+      "wallet_ledger_compensation_created_idx|true|true",
+      "wallet_ledger_compensation_cursor_idx|true|true"
+    ]
+  },
+  "flywayApplication": "p4_v15_flyway_probe",
+  "oldSnapshotSession": {
+    "application": "p4_v15_old_snapshot",
+    "pid": 72706,
+    "state": "active",
+    "waitEventType": "Timeout",
+    "waitEvent": "PgSleep"
+  },
+  "flywayConcurrentBuildWait": {
+    "pid": 72736,
+    "state": "active",
+    "waitEventType": "Lock",
+    "waitEvent": "virtualxid",
+    "indexName": "wallet_ledger_any_source_created_idx",
+    "progressPhase": "waiting for old snapshots",
+    "query": "-- sourceType is optional on the admin API, so this all-source date index supports that query shape. CREATE INDEX CONCURRENTLY IF NOT EXISTS wallet_ledger_any_source_created_idx     ON reward.wallet_ledger (created_at DESC, id DESC)",
+    "blockingPids": [
+      72706
+    ],
+    "snapshotPid": 72706,
+    "snapshotIsDirectBlocker": true
+  },
+  "writerDuringBuild": {
+    "sql": "UPDATE reward.wallet_ledger SET created_at='2100-01-01 00:00:00+00' WHERE id=<seeded COMPENSATION row>",
+    "result": "UPDATE 1",
+    "clientElapsedSeconds": 0.075642,
+    "completedWhileFlywayWaitedOnVirtualxid": true,
+    "updatedIndexedKey": "wallet_ledger_any_source_created_idx.created_at",
+    "updatedLedgerId": 50,
+    "temporaryCreatedAt": "2100-01-01 00:00:00+00",
+    "originalCreatedAt": "2026-06-01 00:11:26+00",
+    "fixtureCleanup": "UPDATE 1",
+    "fixtureStateAfterCleanup": "2026-06-01 00:11:26+00"
+  },
+  "snapshotRelease": "t",
+  "flywayMigrate": {
+    "exitCode": 0,
+    "migrationsExecuted": 1,
+    "clientElapsedSeconds": 2.272,
+    "stdout": "migrationsExecuted=1",
+    "stderr": "SLF4J: Failed to load class \"org.slf4j.impl.StaticLoggerBinder\".\nSLF4J: Defaulting to no-operation (NOP) logger implementation\nSLF4J: See http://www.slf4j.org/codes.html#StaticLoggerBinder for further details."
+  },
+  "schemaHistoryV15": "15|true|1155",
+  "indexes": [
+    "wallet_ledger_any_source_created_idx|true|true|true|31522816",
+    "wallet_ledger_compensation_created_idx|true|true|true|335872",
+    "wallet_ledger_compensation_cursor_idx|true|true|true|245760"
+  ],
+  "indexBackedUpdatedTimestampLookup": {
+    "plan": "SET\nSET\nLimit\n  ->  Index Only Scan using wallet_ledger_any_source_created_idx on wallet_ledger\n        Index Cond: (created_at = '2100-01-01 00:00:00+00'::timestamp with time zone)",
+    "returnedId": 50,
+    "matchesUpdatedRow": true
+  }
+}

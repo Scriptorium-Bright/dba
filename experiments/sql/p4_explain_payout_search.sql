@@ -5,8 +5,14 @@ BEGIN
     IF current_database() <> 'rewardp4db' THEN
         RAISE EXCEPTION 'P4 payout plans are restricted to rewardp4db';
     END IF;
+    IF session_user <> 'reward_app' OR current_user <> 'reward_app' THEN
+        RAISE EXCEPTION 'P4 API query plans must run as reward_app (session_user=%, current_user=%)',
+            session_user, current_user;
+    END IF;
 END;
 $guard$;
+
+SELECT current_database() AS database_name, session_user, current_user;
 
 EXPLAIN (ANALYZE, BUFFERS, VERBOSE, SETTINGS, TIMING)
 SELECT l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id,
