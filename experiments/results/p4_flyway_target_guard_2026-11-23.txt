@@ -1,0 +1,32 @@
+P4 Flyway maintenance target guard verification
+Date: 2026-11-23 KST
+
+The maintenance utility accepts PostgreSQL URLs for only these local targets on port 55433:
+- rewardp4_flyway_recovery_probe
+- rewardp4_flyway_populated_probe
+
+The utility parses the JDBC URL before connecting, then opens the connection and checks
+current_database() against the parsed target before constructing or running Flyway.
+
+Rejected-target check
+---------------------
+Target URL:
+  jdbc:postgresql://127.0.0.1:55433/rewardp4db?currentSchema=reward
+
+Result:
+  exit code: 1
+  message: rejected P4 Flyway target; allowed targets are the two named databases on loopback port 55433
+
+The guard rejected rewardp4db before opening a PostgreSQL connection.
+
+Allowed-target check
+--------------------
+Target:
+  jdbc:postgresql://127.0.0.1:55433/rewardp4_flyway_populated_probe?currentSchema=reward
+
+Result:
+  current_database(): rewardp4_flyway_populated_probe
+  Flyway migrate: migrationsExecuted=0
+
+The existing V15 history was successful and the populated-probe indexes remained in their
+ready/valid state after this no-op migration check.

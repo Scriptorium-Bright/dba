@@ -1,0 +1,12 @@
+DO
+CREATE INDEX
+CREATE INDEX
+ANALYZE
+                   index_name                    | bytes  | indisready | indisvalid 
+-------------------------------------------------+--------+------------+------------
+ reward.p4_candidate_comp_created_no_include_idx | 335872 | t          | t
+ reward.p4_candidate_comp_cursor_no_include_idx  | 245760 | t          | t
+ reward.wallet_ledger_compensation_created_idx   | 688128 | t          | t
+ reward.wallet_ledger_compensation_cursor_idx    | 688128 | t          | t
+(4 rows)
+

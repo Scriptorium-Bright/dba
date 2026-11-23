@@ -1,0 +1,354 @@
+DO
+ database_name | session_user | current_user 
+---------------+--------------+--------------
+ rewardp4db    | reward_app   | reward_app
+(1 row)
+
+PREPARE
+                                                                                                           QUERY PLAN                                                                                                            
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=237.00..237.00 rows=1 width=120) (actual time=0.678..0.680 rows=2 loops=1)
+   Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, (COALESCE(g.event_id, c.event_id)), e.name, c.reason, l.currency_type, l.amount, l.created_at
+   Buffers: shared hit=55
+   ->  Sort  (cost=237.00..237.00 rows=1 width=120) (actual time=0.677..0.679 rows=2 loops=1)
+         Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, (COALESCE(g.event_id, c.event_id)), e.name, c.reason, l.currency_type, l.amount, l.created_at
+         Sort Key: l.id DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=55
+         ->  Nested Loop  (cost=216.91..236.99 rows=1 width=120) (actual time=0.635..0.643 rows=2 loops=1)
+               Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, COALESCE(g.event_id, c.event_id), e.name, c.reason, l.currency_type, l.amount, l.created_at
+               Inner Unique: true
+               Buffers: shared hit=52
+               ->  Nested Loop Left Join  (cost=216.77..236.82 rows=1 width=111) (actual time=0.622..0.629 rows=2 loops=1)
+                     Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, l.currency_type, l.amount, l.created_at, g.event_id, c.event_id, c.reason
+                     Inner Unique: true
+                     Buffers: shared hit=48
+                     ->  Nested Loop Left Join  (cost=216.49..228.52 rows=1 width=68) (actual time=0.606..0.612 rows=2 loops=1)
+                           Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, l.currency_type, l.amount, l.created_at, g.event_id
+                           Inner Unique: true
+                           Buffers: shared hit=45
+                           ->  Bitmap Heap Scan on reward.wallet_ledger l  (cost=216.06..220.08 rows=1 width=60) (actual time=0.600..0.603 rows=2 loops=1)
+                                 Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, l.currency_type, l.amount, l.created_at
+                                 Recheck Cond: ((l.user_id = '110000'::bigint) AND (l.created_at >= '2026-11-07 00:00:00+00'::timestamp with time zone) AND (l.created_at < '2026-11-09 00:00:00+00'::timestamp with time zone))
+                                 Heap Blocks: exact=2
+                                 Buffers: shared hit=41
+                                 ->  BitmapAnd  (cost=216.06..216.06 rows=1 width=0) (actual time=0.592..0.593 rows=0 loops=1)
+                                       Buffers: shared hit=39
+                                       ->  Bitmap Index Scan on wallet_ledger_user_id_id_idx  (cost=0.00..5.17 rows=100 width=0) (actual time=0.038..0.039 rows=100 loops=1)
+                                             Index Cond: (l.user_id = '110000'::bigint)
+                                             Buffers: shared hit=3
+                                       ->  Bitmap Index Scan on wallet_ledger_any_source_created_idx  (cost=0.00..210.64 rows=8221 width=0) (actual time=0.548..0.548 rows=8830 loops=1)
+                                             Index Cond: ((l.created_at >= '2026-11-07 00:00:00+00'::timestamp with time zone) AND (l.created_at < '2026-11-09 00:00:00+00'::timestamp with time zone))
+                                             Buffers: shared hit=36
+                           ->  Index Scan using reward_grants_id_user_id_key on reward.reward_grants g  (cost=0.42..8.44 rows=1 width=16) (actual time=0.003..0.003 rows=0 loops=2)
+                                 Output: g.id, g.event_id, g.user_id, g.request_id, g.money_awarded, g.points_awarded, g.created_at
+                                 Index Cond: (g.id = l.reward_grant_id)
+                                 Buffers: shared hit=4
+                     ->  Index Scan using compensations_id_user_id_key on reward.compensations c  (cost=0.29..8.30 rows=1 width=51) (actual time=0.008..0.008 rows=0 loops=2)
+                           Output: c.id, c.event_id, c.user_id, c.request_id, c.incident_reference, c.reason, c.operator_user_id, c.money_awarded, c.points_awarded, c.created_at
+                           Index Cond: (c.id = l.compensation_id)
+                           Buffers: shared hit=3
+               ->  Index Scan using events_pkey on reward.events e  (cost=0.14..0.16 rows=1 width=25) (actual time=0.006..0.006 rows=1 loops=2)
+                     Output: e.id, e.name, e.mode, e.status, e.starts_at, e.ends_at, e.scheduled_at, e.reward_money, e.reward_point, e.created_at
+                     Index Cond: (e.id = COALESCE(g.event_id, c.event_id))
+                     Buffers: shared hit=4
+ Planning:
+   Buffers: shared hit=525
+ Planning Time: 3.002 ms
+ Execution Time: 0.786 ms
+(49 rows)
+
+                                                                                                           QUERY PLAN                                                                                                            
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=31.99..31.99 rows=1 width=120) (actual time=0.118..0.120 rows=2 loops=1)
+   Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, (COALESCE(g.event_id, c.event_id)), e.name, c.reason, l.currency_type, l.amount, l.created_at
+   Buffers: shared hit=19
+   ->  Sort  (cost=31.99..31.99 rows=1 width=120) (actual time=0.118..0.119 rows=2 loops=1)
+         Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, (COALESCE(g.event_id, c.event_id)), e.name, c.reason, l.currency_type, l.amount, l.created_at
+         Sort Key: l.id DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=19
+         ->  Nested Loop  (cost=11.90..31.98 rows=1 width=120) (actual time=0.066..0.116 rows=2 loops=1)
+               Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, COALESCE(g.event_id, c.event_id), e.name, c.reason, l.currency_type, l.amount, l.created_at
+               Inner Unique: true
+               Buffers: shared hit=19
+               ->  Nested Loop Left Join  (cost=11.76..31.81 rows=1 width=111) (actual time=0.058..0.103 rows=2 loops=1)
+                     Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, l.currency_type, l.amount, l.created_at, g.event_id, c.event_id, c.reason
+                     Inner Unique: true
+                     Buffers: shared hit=15
+                     ->  Nested Loop Left Join  (cost=11.48..23.51 rows=1 width=68) (actual time=0.055..0.057 rows=2 loops=1)
+                           Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, l.currency_type, l.amount, l.created_at, g.event_id
+                           Inner Unique: true
+                           Buffers: shared hit=12
+                           ->  Bitmap Heap Scan on reward.wallet_ledger l  (cost=11.05..15.07 rows=1 width=60) (actual time=0.051..0.053 rows=2 loops=1)
+                                 Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, l.currency_type, l.amount, l.created_at
+                                 Recheck Cond: ((l.user_id = '100001'::bigint) AND (l.created_at >= '2026-06-01 00:00:00+00'::timestamp with time zone) AND (l.created_at < '2026-06-01 00:30:00+00'::timestamp with time zone))
+                                 Heap Blocks: exact=1
+                                 Buffers: shared hit=8
+                                 ->  BitmapAnd  (cost=11.05..11.05 rows=1 width=0) (actual time=0.047..0.047 rows=0 loops=1)
+                                       Buffers: shared hit=7
+                                       ->  Bitmap Index Scan on wallet_ledger_user_id_id_idx  (cost=0.00..5.17 rows=100 width=0) (actual time=0.031..0.031 rows=100 loops=1)
+                                             Index Cond: (l.user_id = '100001'::bigint)
+                                             Buffers: shared hit=3
+                                       ->  Bitmap Index Scan on wallet_ledger_any_source_created_idx  (cost=0.00..5.62 rows=120 width=0) (actual time=0.012..0.012 rows=130 loops=1)
+                                             Index Cond: ((l.created_at >= '2026-06-01 00:00:00+00'::timestamp with time zone) AND (l.created_at < '2026-06-01 00:30:00+00'::timestamp with time zone))
+                                             Buffers: shared hit=4
+                           ->  Index Scan using reward_grants_id_user_id_key on reward.reward_grants g  (cost=0.42..8.44 rows=1 width=16) (actual time=0.002..0.002 rows=0 loops=2)
+                                 Output: g.id, g.event_id, g.user_id, g.request_id, g.money_awarded, g.points_awarded, g.created_at
+                                 Index Cond: (g.id = l.reward_grant_id)
+                                 Buffers: shared hit=4
+                     ->  Index Scan using compensations_id_user_id_key on reward.compensations c  (cost=0.29..8.30 rows=1 width=51) (actual time=0.022..0.022 rows=0 loops=2)
+                           Output: c.id, c.event_id, c.user_id, c.request_id, c.incident_reference, c.reason, c.operator_user_id, c.money_awarded, c.points_awarded, c.created_at
+                           Index Cond: (c.id = l.compensation_id)
+                           Buffers: shared hit=3
+               ->  Index Scan using events_pkey on reward.events e  (cost=0.14..0.16 rows=1 width=25) (actual time=0.005..0.005 rows=1 loops=2)
+                     Output: e.id, e.name, e.mode, e.status, e.starts_at, e.ends_at, e.scheduled_at, e.reward_money, e.reward_point, e.created_at
+                     Index Cond: (e.id = COALESCE(g.event_id, c.event_id))
+                     Buffers: shared hit=4
+ Planning:
+   Buffers: shared hit=34
+ Planning Time: 0.405 ms
+ Execution Time: 0.148 ms
+(49 rows)
+
+   id    | user_id | source_type | reward_grant_id | compensation_id | event_id |    event_name    | reason | currency_type | amount |       created_at       
+---------+---------+-------------+-----------------+-----------------+----------+------------------+--------+---------------+--------+------------------------
+ 1000000 |  110000 | EVENT       |          990000 |                 |     1099 | P4 load event 99 |        | MONEY         |    100 | 2026-11-08 09:59:46+00
+(1 row)
+
+ id | user_id | source_type  | reward_grant_id | compensation_id | event_id |    event_name    |               reason               | currency_type | amount |       created_at       
+----+---------+--------------+-----------------+-----------------+----------+------------------+------------------------------------+---------------+--------+------------------------
+ 50 |  100001 | COMPENSATION |                 |               1 |     1099 | P4 load event 99 | P4 generated compensation workload | MONEY         |    100 | 2026-06-01 00:11:26+00
+(1 row)
+
+   id    | user_id | source_type | reward_grant_id | compensation_id | event_id |    event_name    | reason | currency_type | amount |       created_at       
+---------+---------+-------------+-----------------+-----------------+----------+------------------+--------+---------------+--------+------------------------
+ 1000000 |  110000 | EVENT       |          990000 |                 |     1099 | P4 load event 99 |        | MONEY         |    100 | 2026-11-08 09:59:46+00
+(1 row)
+
+         name          | generic_plans | custom_plans 
+-----------------------+---------------+--------------
+ p4_user_period_search |             0 |            5
+(1 row)
+
+                                                                                       QUERY PLAN                                                                                        
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=156.79..156.79 rows=1 width=120) (actual time=0.308..0.310 rows=2 loops=1)
+   Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, (COALESCE(g.event_id, c.event_id)), e.name, c.reason, l.currency_type, l.amount, l.created_at
+   Buffers: shared hit=52
+   ->  Sort  (cost=156.79..156.79 rows=1 width=120) (actual time=0.307..0.309 rows=2 loops=1)
+         Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, (COALESCE(g.event_id, c.event_id)), e.name, c.reason, l.currency_type, l.amount, l.created_at
+         Sort Key: l.id DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=52
+         ->  Nested Loop  (cost=136.70..156.78 rows=1 width=120) (actual time=0.299..0.305 rows=2 loops=1)
+               Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, COALESCE(g.event_id, c.event_id), e.name, c.reason, l.currency_type, l.amount, l.created_at
+               Inner Unique: true
+               Buffers: shared hit=52
+               ->  Nested Loop Left Join  (cost=136.56..156.61 rows=1 width=111) (actual time=0.296..0.301 rows=2 loops=1)
+                     Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, l.currency_type, l.amount, l.created_at, g.event_id, c.event_id, c.reason
+                     Inner Unique: true
+                     Buffers: shared hit=48
+                     ->  Nested Loop Left Join  (cost=136.28..148.31 rows=1 width=68) (actual time=0.294..0.298 rows=2 loops=1)
+                           Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, l.currency_type, l.amount, l.created_at, g.event_id
+                           Inner Unique: true
+                           Buffers: shared hit=45
+                           ->  Bitmap Heap Scan on reward.wallet_ledger l  (cost=135.85..139.87 rows=1 width=60) (actual time=0.292..0.294 rows=2 loops=1)
+                                 Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, l.currency_type, l.amount, l.created_at
+                                 Recheck Cond: ((l.user_id = $1) AND (l.created_at >= $2) AND (l.created_at < $3))
+                                 Heap Blocks: exact=2
+                                 Buffers: shared hit=41
+                                 ->  BitmapAnd  (cost=135.85..135.85 rows=1 width=0) (actual time=0.288..0.289 rows=0 loops=1)
+                                       Buffers: shared hit=39
+                                       ->  Bitmap Index Scan on wallet_ledger_user_id_id_idx  (cost=0.00..5.17 rows=100 width=0) (actual time=0.008..0.009 rows=100 loops=1)
+                                             Index Cond: (l.user_id = $1)
+                                             Buffers: shared hit=3
+                                       ->  Bitmap Index Scan on wallet_ledger_any_source_created_idx  (cost=0.00..130.43 rows=5000 width=0) (actual time=0.275..0.275 rows=8830 loops=1)
+                                             Index Cond: ((l.created_at >= $2) AND (l.created_at < $3))
+                                             Buffers: shared hit=36
+                           ->  Index Scan using reward_grants_id_user_id_key on reward.reward_grants g  (cost=0.42..8.44 rows=1 width=16) (actual time=0.001..0.001 rows=0 loops=2)
+                                 Output: g.id, g.event_id, g.user_id, g.request_id, g.money_awarded, g.points_awarded, g.created_at
+                                 Index Cond: (g.id = l.reward_grant_id)
+                                 Buffers: shared hit=4
+                     ->  Index Scan using compensations_id_user_id_key on reward.compensations c  (cost=0.29..8.30 rows=1 width=51) (actual time=0.001..0.001 rows=0 loops=2)
+                           Output: c.id, c.event_id, c.user_id, c.request_id, c.incident_reference, c.reason, c.operator_user_id, c.money_awarded, c.points_awarded, c.created_at
+                           Index Cond: (c.id = l.compensation_id)
+                           Buffers: shared hit=3
+               ->  Index Scan using events_pkey on reward.events e  (cost=0.14..0.16 rows=1 width=25) (actual time=0.001..0.001 rows=1 loops=2)
+                     Output: e.id, e.name, e.mode, e.status, e.starts_at, e.ends_at, e.scheduled_at, e.reward_money, e.reward_point, e.created_at
+                     Index Cond: (e.id = COALESCE(g.event_id, c.event_id))
+                     Buffers: shared hit=4
+ Planning:
+   Buffers: shared hit=24
+ Planning Time: 0.327 ms
+ Execution Time: 0.337 ms
+(49 rows)
+
+                                                                                       QUERY PLAN                                                                                        
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=156.79..156.79 rows=1 width=120) (actual time=0.047..0.049 rows=2 loops=1)
+   Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, (COALESCE(g.event_id, c.event_id)), e.name, c.reason, l.currency_type, l.amount, l.created_at
+   Buffers: shared hit=19
+   ->  Sort  (cost=156.79..156.79 rows=1 width=120) (actual time=0.047..0.048 rows=2 loops=1)
+         Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, (COALESCE(g.event_id, c.event_id)), e.name, c.reason, l.currency_type, l.amount, l.created_at
+         Sort Key: l.id DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=19
+         ->  Nested Loop  (cost=136.70..156.78 rows=1 width=120) (actual time=0.039..0.045 rows=2 loops=1)
+               Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, COALESCE(g.event_id, c.event_id), e.name, c.reason, l.currency_type, l.amount, l.created_at
+               Inner Unique: true
+               Buffers: shared hit=19
+               ->  Nested Loop Left Join  (cost=136.56..156.61 rows=1 width=111) (actual time=0.037..0.041 rows=2 loops=1)
+                     Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, l.currency_type, l.amount, l.created_at, g.event_id, c.event_id, c.reason
+                     Inner Unique: true
+                     Buffers: shared hit=15
+                     ->  Nested Loop Left Join  (cost=136.28..148.31 rows=1 width=68) (actual time=0.033..0.034 rows=2 loops=1)
+                           Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, l.currency_type, l.amount, l.created_at, g.event_id
+                           Inner Unique: true
+                           Buffers: shared hit=12
+                           ->  Bitmap Heap Scan on reward.wallet_ledger l  (cost=135.85..139.87 rows=1 width=60) (actual time=0.029..0.029 rows=2 loops=1)
+                                 Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, l.currency_type, l.amount, l.created_at
+                                 Recheck Cond: ((l.user_id = $1) AND (l.created_at >= $2) AND (l.created_at < $3))
+                                 Heap Blocks: exact=1
+                                 Buffers: shared hit=8
+                                 ->  BitmapAnd  (cost=135.85..135.85 rows=1 width=0) (actual time=0.023..0.024 rows=0 loops=1)
+                                       Buffers: shared hit=7
+                                       ->  Bitmap Index Scan on wallet_ledger_user_id_id_idx  (cost=0.00..5.17 rows=100 width=0) (actual time=0.009..0.009 rows=100 loops=1)
+                                             Index Cond: (l.user_id = $1)
+                                             Buffers: shared hit=3
+                                       ->  Bitmap Index Scan on wallet_ledger_any_source_created_idx  (cost=0.00..130.43 rows=5000 width=0) (actual time=0.010..0.010 rows=130 loops=1)
+                                             Index Cond: ((l.created_at >= $2) AND (l.created_at < $3))
+                                             Buffers: shared hit=4
+                           ->  Index Scan using reward_grants_id_user_id_key on reward.reward_grants g  (cost=0.42..8.44 rows=1 width=16) (actual time=0.002..0.002 rows=0 loops=2)
+                                 Output: g.id, g.event_id, g.user_id, g.request_id, g.money_awarded, g.points_awarded, g.created_at
+                                 Index Cond: (g.id = l.reward_grant_id)
+                                 Buffers: shared hit=4
+                     ->  Index Scan using compensations_id_user_id_key on reward.compensations c  (cost=0.29..8.30 rows=1 width=51) (actual time=0.003..0.003 rows=0 loops=2)
+                           Output: c.id, c.event_id, c.user_id, c.request_id, c.incident_reference, c.reason, c.operator_user_id, c.money_awarded, c.points_awarded, c.created_at
+                           Index Cond: (c.id = l.compensation_id)
+                           Buffers: shared hit=3
+               ->  Index Scan using events_pkey on reward.events e  (cost=0.14..0.16 rows=1 width=25) (actual time=0.001..0.001 rows=1 loops=2)
+                     Output: e.id, e.name, e.mode, e.status, e.starts_at, e.ends_at, e.scheduled_at, e.reward_money, e.reward_point, e.created_at
+                     Index Cond: (e.id = COALESCE(g.event_id, c.event_id))
+                     Buffers: shared hit=4
+ Planning Time: 0.010 ms
+ Execution Time: 0.069 ms
+(47 rows)
+
+         name          | generic_plans | custom_plans 
+-----------------------+---------------+--------------
+ p4_user_period_search |             2 |            5
+(1 row)
+
+SET
+                                                                                       QUERY PLAN                                                                                        
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=156.79..156.79 rows=1 width=120) (actual time=0.324..0.326 rows=2 loops=1)
+   Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, (COALESCE(g.event_id, c.event_id)), e.name, c.reason, l.currency_type, l.amount, l.created_at
+   Buffers: shared hit=52
+   ->  Sort  (cost=156.79..156.79 rows=1 width=120) (actual time=0.324..0.325 rows=2 loops=1)
+         Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, (COALESCE(g.event_id, c.event_id)), e.name, c.reason, l.currency_type, l.amount, l.created_at
+         Sort Key: l.id DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=52
+         ->  Nested Loop  (cost=136.70..156.78 rows=1 width=120) (actual time=0.316..0.322 rows=2 loops=1)
+               Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, COALESCE(g.event_id, c.event_id), e.name, c.reason, l.currency_type, l.amount, l.created_at
+               Inner Unique: true
+               Buffers: shared hit=52
+               ->  Nested Loop Left Join  (cost=136.56..156.61 rows=1 width=111) (actual time=0.314..0.319 rows=2 loops=1)
+                     Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, l.currency_type, l.amount, l.created_at, g.event_id, c.event_id, c.reason
+                     Inner Unique: true
+                     Buffers: shared hit=48
+                     ->  Nested Loop Left Join  (cost=136.28..148.31 rows=1 width=68) (actual time=0.311..0.315 rows=2 loops=1)
+                           Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, l.currency_type, l.amount, l.created_at, g.event_id
+                           Inner Unique: true
+                           Buffers: shared hit=45
+                           ->  Bitmap Heap Scan on reward.wallet_ledger l  (cost=135.85..139.87 rows=1 width=60) (actual time=0.310..0.312 rows=2 loops=1)
+                                 Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, l.currency_type, l.amount, l.created_at
+                                 Recheck Cond: ((l.user_id = $1) AND (l.created_at >= $2) AND (l.created_at < $3))
+                                 Heap Blocks: exact=2
+                                 Buffers: shared hit=41
+                                 ->  BitmapAnd  (cost=135.85..135.85 rows=1 width=0) (actual time=0.306..0.307 rows=0 loops=1)
+                                       Buffers: shared hit=39
+                                       ->  Bitmap Index Scan on wallet_ledger_user_id_id_idx  (cost=0.00..5.17 rows=100 width=0) (actual time=0.019..0.019 rows=100 loops=1)
+                                             Index Cond: (l.user_id = $1)
+                                             Buffers: shared hit=3
+                                       ->  Bitmap Index Scan on wallet_ledger_any_source_created_idx  (cost=0.00..130.43 rows=5000 width=0) (actual time=0.283..0.283 rows=8830 loops=1)
+                                             Index Cond: ((l.created_at >= $2) AND (l.created_at < $3))
+                                             Buffers: shared hit=36
+                           ->  Index Scan using reward_grants_id_user_id_key on reward.reward_grants g  (cost=0.42..8.44 rows=1 width=16) (actual time=0.001..0.001 rows=0 loops=2)
+                                 Output: g.id, g.event_id, g.user_id, g.request_id, g.money_awarded, g.points_awarded, g.created_at
+                                 Index Cond: (g.id = l.reward_grant_id)
+                                 Buffers: shared hit=4
+                     ->  Index Scan using compensations_id_user_id_key on reward.compensations c  (cost=0.29..8.30 rows=1 width=51) (actual time=0.001..0.001 rows=0 loops=2)
+                           Output: c.id, c.event_id, c.user_id, c.request_id, c.incident_reference, c.reason, c.operator_user_id, c.money_awarded, c.points_awarded, c.created_at
+                           Index Cond: (c.id = l.compensation_id)
+                           Buffers: shared hit=3
+               ->  Index Scan using events_pkey on reward.events e  (cost=0.14..0.16 rows=1 width=25) (actual time=0.001..0.001 rows=1 loops=2)
+                     Output: e.id, e.name, e.mode, e.status, e.starts_at, e.ends_at, e.scheduled_at, e.reward_money, e.reward_point, e.created_at
+                     Index Cond: (e.id = COALESCE(g.event_id, c.event_id))
+                     Buffers: shared hit=4
+ Settings: plan_cache_mode = 'force_generic_plan'
+ Planning Time: 0.009 ms
+ Execution Time: 0.346 ms
+(48 rows)
+
+                                                                                       QUERY PLAN                                                                                        
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=156.79..156.79 rows=1 width=120) (actual time=0.032..0.034 rows=2 loops=1)
+   Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, (COALESCE(g.event_id, c.event_id)), e.name, c.reason, l.currency_type, l.amount, l.created_at
+   Buffers: shared hit=19
+   ->  Sort  (cost=156.79..156.79 rows=1 width=120) (actual time=0.032..0.033 rows=2 loops=1)
+         Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, (COALESCE(g.event_id, c.event_id)), e.name, c.reason, l.currency_type, l.amount, l.created_at
+         Sort Key: l.id DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=19
+         ->  Nested Loop  (cost=136.70..156.78 rows=1 width=120) (actual time=0.026..0.031 rows=2 loops=1)
+               Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, COALESCE(g.event_id, c.event_id), e.name, c.reason, l.currency_type, l.amount, l.created_at
+               Inner Unique: true
+               Buffers: shared hit=19
+               ->  Nested Loop Left Join  (cost=136.56..156.61 rows=1 width=111) (actual time=0.024..0.028 rows=2 loops=1)
+                     Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, l.currency_type, l.amount, l.created_at, g.event_id, c.event_id, c.reason
+                     Inner Unique: true
+                     Buffers: shared hit=15
+                     ->  Nested Loop Left Join  (cost=136.28..148.31 rows=1 width=68) (actual time=0.023..0.025 rows=2 loops=1)
+                           Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, l.currency_type, l.amount, l.created_at, g.event_id
+                           Inner Unique: true
+                           Buffers: shared hit=12
+                           ->  Bitmap Heap Scan on reward.wallet_ledger l  (cost=135.85..139.87 rows=1 width=60) (actual time=0.020..0.021 rows=2 loops=1)
+                                 Output: l.id, l.user_id, l.source_type, l.reward_grant_id, l.compensation_id, l.currency_type, l.amount, l.created_at
+                                 Recheck Cond: ((l.user_id = $1) AND (l.created_at >= $2) AND (l.created_at < $3))
+                                 Heap Blocks: exact=1
+                                 Buffers: shared hit=8
+                                 ->  BitmapAnd  (cost=135.85..135.85 rows=1 width=0) (actual time=0.017..0.017 rows=0 loops=1)
+                                       Buffers: shared hit=7
+                                       ->  Bitmap Index Scan on wallet_ledger_user_id_id_idx  (cost=0.00..5.17 rows=100 width=0) (actual time=0.007..0.007 rows=100 loops=1)
+                                             Index Cond: (l.user_id = $1)
+                                             Buffers: shared hit=3
+                                       ->  Bitmap Index Scan on wallet_ledger_any_source_created_idx  (cost=0.00..130.43 rows=5000 width=0) (actual time=0.006..0.007 rows=130 loops=1)
+                                             Index Cond: ((l.created_at >= $2) AND (l.created_at < $3))
+                                             Buffers: shared hit=4
+                           ->  Index Scan using reward_grants_id_user_id_key on reward.reward_grants g  (cost=0.42..8.44 rows=1 width=16) (actual time=0.001..0.001 rows=0 loops=2)
+                                 Output: g.id, g.event_id, g.user_id, g.request_id, g.money_awarded, g.points_awarded, g.created_at
+                                 Index Cond: (g.id = l.reward_grant_id)
+                                 Buffers: shared hit=4
+                     ->  Index Scan using compensations_id_user_id_key on reward.compensations c  (cost=0.29..8.30 rows=1 width=51) (actual time=0.001..0.001 rows=0 loops=2)
+                           Output: c.id, c.event_id, c.user_id, c.request_id, c.incident_reference, c.reason, c.operator_user_id, c.money_awarded, c.points_awarded, c.created_at
+                           Index Cond: (c.id = l.compensation_id)
+                           Buffers: shared hit=3
+               ->  Index Scan using events_pkey on reward.events e  (cost=0.14..0.16 rows=1 width=25) (actual time=0.001..0.001 rows=1 loops=2)
+                     Output: e.id, e.name, e.mode, e.status, e.starts_at, e.ends_at, e.scheduled_at, e.reward_money, e.reward_point, e.created_at
+                     Index Cond: (e.id = COALESCE(g.event_id, c.event_id))
+                     Buffers: shared hit=4
+ Settings: plan_cache_mode = 'force_generic_plan'
+ Planning Time: 0.008 ms
+ Execution Time: 0.074 ms
+(48 rows)
+
+         name          | generic_plans | custom_plans 
+-----------------------+---------------+--------------
+ p4_user_period_search |             4 |            5
+(1 row)
+
+RESET
+DEALLOCATE

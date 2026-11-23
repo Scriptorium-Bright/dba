@@ -1,0 +1,42 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: reward-api
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/rewarddb?currentSchema=reward&escapeSyntaxCallMode=callIfNoReturn}
+    username: ${SPRING_DATASOURCE_USERNAME:reward_app}
+    password: ${SPRING_DATASOURCE_PASSWORD:local_app_only}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 1
+  flyway:
+    enabled: true
+    url: ${SPRING_FLYWAY_URL:jdbc:postgresql://localhost:5432/rewarddb?currentSchema=reward}
+    user: ${SPRING_FLYWAY_USER:reward_migration}
+    password: ${SPRING_FLYWAY_PASSWORD:local_migration_only}
+    schemas: reward
+    default-schema: reward
+    create-schemas: false
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+app:
+  allowed-origin: ${APP_ALLOWED_ORIGIN:http://localhost:5173}
+  # 지갑·지급 이력 초기화는 로컬 데모에서만 제공하며 기본값은 비활성이다.
+  demo-wallet-reset-enabled: ${APP_DEMO_WALLET_RESET_ENABLED:false}
+  # CS 장애 보상 경로는 격리된 P3 로컬 환경에서만 명시적으로 켠다.
+  p3-compensation-enabled: ${APP_P3_COMPENSATION_ENABLED:false}
+  # 진단용 인위 대기 endpoint는 전용 로컬 Compose profile에서만 등록한다.
+  latency-lab:
+    enabled: ${APP_LATENCY_LAB_ENABLED:false}

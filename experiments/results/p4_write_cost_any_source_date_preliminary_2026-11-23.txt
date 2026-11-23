@@ -1,0 +1,39 @@
+DO
+DROP TABLE
+DROP TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE INDEX
+                                                            QUERY PLAN                                                             
+-----------------------------------------------------------------------------------------------------------------------------------
+ Insert on p4_write_any_source_baseline  (cost=0.00..1875.00 rows=0 width=0) (actual time=75.629..75.630 rows=0 loops=1)
+   Buffers: shared hit=150582 read=1 dirtied=561 written=562
+   WAL: records=100137 bytes=8061500
+   ->  Function Scan on generate_series n  (cost=0.00..1875.00 rows=50000 width=96) (actual time=1.858..10.261 rows=50000 loops=1)
+ Planning Time: 0.063 ms
+ Execution Time: 75.898 ms
+(6 rows)
+
+                                                            QUERY PLAN                                                             
+-----------------------------------------------------------------------------------------------------------------------------------
+ Insert on p4_write_any_source_indexed  (cost=0.00..1875.00 rows=0 width=0) (actual time=106.722..106.723 rows=0 loops=1)
+   Buffers: shared hit=250990 read=2 dirtied=906 written=906
+   WAL: records=150480 bytes=12901000
+   ->  Function Scan on generate_series n  (cost=0.00..1875.00 rows=50000 width=96) (actual time=2.013..10.525 rows=50000 loops=1)
+ Planning Time: 0.051 ms
+ Execution Time: 106.991 ms
+(6 rows)
+
+           relname            | table_bytes | total_bytes 
+------------------------------+-------------+-------------
+ p4_write_any_source_baseline |     3448832 |     4620288
+ p4_write_any_source_indexed  |     3448832 |     7446528
+(2 rows)
+
+               index_name               |  bytes  
+----------------------------------------+---------
+ reward.p4_write_any_source_created_idx | 2826240
+(1 row)
+
+DROP TABLE
+DROP TABLE

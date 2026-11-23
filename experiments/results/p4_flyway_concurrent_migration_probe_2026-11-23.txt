@@ -1,0 +1,31 @@
+Flyway non-transactional concurrent-index migration probe
+Date: 2026-11-23 KST (database log timestamps are UTC)
+
+The first fresh-database attempt is retained as a debugging observation. It used Flyway's
+per-script `executeInTransaction=false` setting but omitted the PostgreSQL-specific
+`transactional.lock=false` setting.
+
+Observed PostgreSQL state
+-------------------------
+Both sessions connected to the disposable `rewardp4_flyway_probe` database as `reward_migration`:
+
+| PID | state | wait | blocking PID | query |
+|---:|---|---|---:|---|
+| 44638 | idle in transaction | Client / ClientRead | — | SELECT from reward.flyway_schema_history; backend_xmin=994 |
+| 44639 | active | Lock / virtualxid | 44638 | V15 statement starting with CREATE INDEX CONCURRENTLY |
+
+`pg_blocking_pids(44639)` returned `{44638}`. The database was at V1-V14 and the V15 build had
+not completed. The one-off API container was stopped and this disposable database was dropped.
+
+Correction and final result
+---------------------------
+The review found Flyway's PostgreSQL transactional lock setting. The P4 API now sets
+`spring.flyway.postgresql.transactional-lock=false`, and V15 remains configured with
+`executeInTransaction=false`. Under Spring Boot 3.5.16, Flyway 11.7.2, and PostgreSQL 17.12, a
+fresh database then completed V1-V15, started the API, and recorded all three exact indexes as
+ready and valid. Full output and schema-history/catalog evidence is in
+[p4_flyway_fresh_deploy_2026-11-23.txt](p4_flyway_fresh_deploy_2026-11-23.txt).
+
+The initial wait was caused by the missing PostgreSQL-specific lock setting in that attempt. It
+is not evidence that Flyway cannot run this migration. The corrected V15 path is the current P4
+schema deployment.

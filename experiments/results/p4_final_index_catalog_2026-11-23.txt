@@ -1,0 +1,8 @@
+DO
+                  index_name                   | present | indisready | indisvalid |  bytes   |  size  |                                                                          definition                                                                           
+-----------------------------------------------+---------+------------+------------+----------+--------+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+ reward.wallet_ledger_any_source_created_idx   | t       | t          | t          | 31522816 | 30 MB  | CREATE INDEX wallet_ledger_any_source_created_idx ON reward.wallet_ledger USING btree (created_at DESC, id DESC)
+ reward.wallet_ledger_compensation_created_idx | t       | t          | t          |   335872 | 328 kB | CREATE INDEX wallet_ledger_compensation_created_idx ON reward.wallet_ledger USING btree (created_at DESC, id DESC) WHERE (source_type = 'COMPENSATION'::text)
+ reward.wallet_ledger_compensation_cursor_idx  | t       | t          | t          |   245760 | 240 kB | CREATE INDEX wallet_ledger_compensation_cursor_idx ON reward.wallet_ledger USING btree (id DESC) WHERE (source_type = 'COMPENSATION'::text)
+(3 rows)
+

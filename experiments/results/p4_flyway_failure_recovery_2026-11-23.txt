@@ -1,0 +1,59 @@
+P4 Flyway V15 failure and recovery verification
+Date: 2026-11-23 KST
+
+Scope
+-----
+- Disposable database: rewardp4_flyway_recovery_probe on the isolated P4 PostgreSQL 17.12 container.
+- Flyway Core/PostgreSQL module: 11.7.2.
+- Migration locations: filesystem:database/migrations and filesystem:database/p4-migrations.
+- Configuration: flyway.postgresql.transactional.lock=false and the V15 companion setting
+  executeInTransaction=false.
+- The production P4 database and wallet_ledger data were not modified by this failure test.
+
+Failure injection
+-----------------
+The disposable database was migrated through V14. The guarded SQL helper then created a
+deliberately incorrect, valid index using the expected name
+wallet_ledger_compensation_created_idx, but with only (id) as its key. V15's
+CREATE INDEX CONCURRENTLY IF NOT EXISTS skipped that name, created the other missing indexes,
+and reached its final exact-definition check. That check raised:
+
+  ERROR: unexpected wallet ledger index definition for
+  reward.wallet_ledger_compensation_created_idx:
+  CREATE INDEX wallet_ledger_compensation_created_idx ON reward.wallet_ledger USING btree (id)
+
+Flyway exited nonzero and recorded version 15 with success=false and installed_by
+reward_migration. The catalog inspection returned:
+
+| index | indisready | indisvalid | observed key/predicate |
+|---|---:|---:|---|
+| wallet_ledger_compensation_cursor_idx | true | true | id DESC WHERE source_type='COMPENSATION' |
+| wallet_ledger_compensation_created_idx | true | true | id (deliberately wrong definition) |
+| wallet_ledger_any_source_created_idx | true | true | created_at DESC, id DESC |
+
+A second migrate attempt before repair was rejected during validation because version 15 was
+recorded as failed.
+
+Recovery sequence and result
+----------------------------
+1. Inspected the failed schema-history row and all three index definitions/readiness flags.
+2. Removed only the mismatched index with DROP INDEX CONCURRENTLY. The two exact, valid indexes
+   were kept.
+3. Called Flyway repair with the same two migration locations and PostgreSQL transactional-lock
+   setting. This clears the failed migration record; it does not repair or remove database objects.
+4. Called Flyway migrate with the same configuration. It executed one migration (V15).
+5. Re-queried schema history and the catalog: V15 success=true, installed_by=reward_migration;
+   all three indexes had the exact expected pg_get_indexdef and indisready=true/indisvalid=true.
+
+Reproduction files
+------------------
+- experiments/sql/p4_prepare_flyway_v15_failure.sql: disposable-database guard and wrong-name
+  index injection.
+- experiments/P4FlywayMaintenance.java: Flyway Java API utility for migrate/repair using the
+  exact shared and P4-only locations and PostgreSQL lock setting configured in compose.p4.yaml.
+
+The separate experiments/p4_index_failure_recovery.py test covers a concurrent unique-index
+build that fails on duplicate data and leaves indisready=false/indisvalid=false. That failure
+was on a scratch table and is recorded in p4_index_failure_recovery_2026-11-23.json. This V15
+test intentionally fails at the migration's final catalog validation instead of interrupting
+an in-progress concurrent build.

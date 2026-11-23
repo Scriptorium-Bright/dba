@@ -1,0 +1,30 @@
+# P5 운영 진단은 앱 트래픽과 P2~P4 데이터를 건드리지 않도록 전용 PostgreSQL로 실행합니다.
+services:
+  db:
+    image: postgres:17.12
+    environment:
+      POSTGRES_DB: rewardp5db
+      POSTGRES_USER: reward_bootstrap
+      POSTGRES_PASSWORD: ${P5_DB_BOOTSTRAP_PASSWORD:-p5_bootstrap_local_only}
+      DB_APP_PASSWORD: ${P5_DB_APP_PASSWORD:-p5_app_local_only}
+      DB_MIGRATION_PASSWORD: ${P5_DB_MIGRATION_PASSWORD:-p5_migration_local_only}
+      DB_OBSERVER_PASSWORD: ${P5_DB_OBSERVER_PASSWORD:-p5_observer_local_only}
+      TZ: UTC
+    ports:
+      # P2~P4 DB 포트와 충돌하지 않도록 P5 인스턴스만 55434로 공개합니다.
+      - "127.0.0.1:55434:5432"
+    volumes:
+      # P5 실험 데이터는 별도 볼륨에 두어 기존 지급 데이터와 섞이지 않게 합니다.
+      - reward_p5_pgdata:/var/lib/postgresql/data
+      - ./database/bootstrap/10-create-roles.sh:/docker-entrypoint-initdb.d/10-create-roles.sh:ro
+      - ./database/bootstrap/20-p5-observer.sql:/docker-entrypoint-initdb.d/20-p5-observer.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reward_bootstrap -d rewardp5db"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+volumes:
+  reward_p5_pgdata:
+    name: reward_p5_pgdata
