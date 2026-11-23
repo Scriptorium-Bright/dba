@@ -15,6 +15,7 @@ import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.ResultSet;
@@ -176,13 +177,13 @@ public class RewardService {
         return new RecipientUpdateResponse(eventId, userIds.size());
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public ClaimResponse claim(long userId, long eventId, UUID requestId) {
         ensureUser(userId);
         return grantProcedure.call(eventId, userId, requestId, "CLAIM");
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public CompensationResponse compensate(long operatorUserId, CompensationRequest request) {
         ensureUser(operatorUserId);
         ensureUser(request.userId());

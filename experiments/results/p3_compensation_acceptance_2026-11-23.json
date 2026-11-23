@@ -1,0 +1,269 @@
+{
+  "database": "rewardp3db",
+  "userId": 1700063531000,
+  "eventId": 5,
+  "incidentReference": "P3-V16-db93444bc0f847df8b5d98f398a953a3",
+  "requestResults": [
+    {
+      "result": "PAID",
+      "compensationId": 101,
+      "message": "장애 보상을 지급했습니다."
+    },
+    {
+      "result": "REPLAYED",
+      "compensationId": 101,
+      "message": "기존 보상 요청 결과를 확인했습니다."
+    },
+    {
+      "result": "ALREADY_COMPENSATED",
+      "compensationId": 101,
+      "message": "같은 장애 건에 대한 보상이 이미 기록되어 있습니다."
+    }
+  ],
+  "changedBusinessPayloads": [
+    {
+      "field": "reason",
+      "httpStatus": 409
+    },
+    {
+      "field": "operator",
+      "httpStatus": 409
+    },
+    {
+      "field": "money",
+      "httpStatus": 409
+    },
+    {
+      "field": "points",
+      "httpStatus": 409
+    }
+  ],
+  "reconciliation": [
+    "1",
+    "2",
+    "2500",
+    "500",
+    "2500",
+    "500"
+  ],
+  "directDml": "wallet UPDATE and compensation INSERT denied as reward_app",
+  "rewardAppPrivileges": [
+    "f",
+    "f",
+    "t",
+    "t",
+    "reward_migration",
+    "f",
+    "f",
+    "f",
+    "f",
+    "f",
+    "reward_migration",
+    "f",
+    "f",
+    "f",
+    "t",
+    "t",
+    "f",
+    "0",
+    "f",
+    "{\"search_path=pg_catalog, reward, pg_temp\"}",
+    "0",
+    "0",
+    "grant_compensation/p,grant_event_reward/p,reset_all_local_wallets/f,reset_local_user_wallet/f",
+    "0",
+    "t",
+    "11",
+    "0",
+    "0"
+  ],
+  "appCannotSetMigrationRole": true,
+  "transactionIsolationObservation": null,
+  "resetResponse": {
+    "usersReset": 1,
+    "grantsDeleted": 0,
+    "compensationsDeleted": 1,
+    "ledgerRowsDeleted": 2,
+    "message": "선택한 사용자의 지갑과 지급 이력을 초기화했습니다."
+  },
+  "resetReconciliation": [
+    "1",
+    "0",
+    "0",
+    "0",
+    "0"
+  ],
+  "concurrentDifferentRequestIds": {
+    "waitEvent": "transactionid",
+    "winner": "PAID",
+    "secondRequest": {
+      "result": "ALREADY_COMPENSATED",
+      "compensationId": 107,
+      "message": "같은 장애 건에 대한 보상이 이미 기록되어 있습니다."
+    },
+    "httpStatus": 200,
+    "reconciliation": [
+      "1",
+      "2",
+      "3300",
+      "700",
+      "3300",
+      "700"
+    ],
+    "cleanup": {
+      "usersReset": 1,
+      "grantsDeleted": 0,
+      "compensationsDeleted": 1,
+      "ledgerRowsDeleted": 2,
+      "message": "선택한 사용자의 지갑과 지급 이력을 초기화했습니다."
+    }
+  },
+  "concurrentSameRequestIdDifferentPayload": {
+    "waitEvent": "advisory",
+    "winner": "PAID",
+    "conflictingRequestHttpStatus": 409,
+    "reconciliation": [
+      "1",
+      "1",
+      "0",
+      "2",
+      "0",
+      "4400",
+      "300",
+      "0",
+      "0"
+    ],
+    "cleanup": [
+      {
+        "usersReset": 1,
+        "grantsDeleted": 0,
+        "compensationsDeleted": 1,
+        "ledgerRowsDeleted": 2,
+        "message": "선택한 사용자의 지갑과 지급 이력을 초기화했습니다."
+      },
+      {
+        "usersReset": 1,
+        "grantsDeleted": 0,
+        "compensationsDeleted": 0,
+        "ledgerRowsDeleted": 0,
+        "message": "선택한 사용자의 지갑과 지급 이력을 초기화했습니다."
+      }
+    ]
+  },
+  "crossOperationRequestIdConflict": {
+    "claimThenCompensation": {
+      "requestId": "7aa30c7b-ad35-4828-982b-1bf72645321c",
+      "claimHttpStatus": 200,
+      "claimResult": "PAID",
+      "compensationHttpStatus": 409,
+      "compensationResponse": {
+        "code": "CONFLICT",
+        "message": "이미 다른 지급 처리에 사용된 요청 ID입니다."
+      },
+      "reconciliationBeforeCleanup": [
+        "1",
+        "0",
+        "2",
+        "1000",
+        "200",
+        "1000",
+        "200"
+      ]
+    },
+    "compensationThenClaim": {
+      "requestId": "3ebd119c-f8a0-4e4e-a396-ab6d7f59ec53",
+      "compensationHttpStatus": 200,
+      "compensationResult": "PAID",
+      "claimHttpStatus": 409,
+      "claimResponse": {
+        "code": "CONFLICT",
+        "message": "이미 다른 지급 처리에 사용된 요청 ID입니다."
+      },
+      "reconciliationBeforeCleanup": [
+        "0",
+        "1",
+        "2",
+        "1800",
+        "350",
+        "1800",
+        "350"
+      ]
+    },
+    "cleanup": [
+      {
+        "usersReset": 1,
+        "grantsDeleted": 1,
+        "compensationsDeleted": 0,
+        "ledgerRowsDeleted": 2,
+        "message": "선택한 사용자의 지갑과 지급 이력을 초기화했습니다."
+      },
+      {
+        "usersReset": 1,
+        "grantsDeleted": 0,
+        "compensationsDeleted": 1,
+        "ledgerRowsDeleted": 2,
+        "message": "선택한 사용자의 지갑과 지급 이력을 초기화했습니다."
+      }
+    ]
+  },
+  "mixedClaimThenCompensationRace": {
+    "firstOperation": "CLAIM",
+    "requestId": "7e7a08fd-d886-4dd7-9c91-8b7dc1f60f9a",
+    "waitEvent": "advisory",
+    "waiterAndBlockerPids": "72241<-73958",
+    "firstResult": "PAID",
+    "oppositeRequestHttpStatus": 409,
+    "oppositeResponse": {
+      "code": "CONFLICT",
+      "message": "이미 다른 지급 처리에 사용된 요청 ID입니다."
+    },
+    "reconciliationBeforeCleanup": [
+      "1",
+      "0",
+      "2",
+      "1000",
+      "200",
+      "1000",
+      "200",
+      "1000",
+      "200"
+    ],
+    "cleanup": {
+      "usersReset": 1,
+      "grantsDeleted": 1,
+      "compensationsDeleted": 0,
+      "ledgerRowsDeleted": 2,
+      "message": "선택한 사용자의 지갑과 지급 이력을 초기화했습니다."
+    }
+  },
+  "mixedCompensationThenClaimRace": {
+    "firstOperation": "COMPENSATION",
+    "requestId": "19f2726e-647f-438a-91d9-30c9ca92306e",
+    "waitEvent": "advisory",
+    "waiterAndBlockerPids": "72241<-74013",
+    "firstResult": "PAID",
+    "oppositeRequestHttpStatus": 409,
+    "oppositeResponse": {
+      "code": "CONFLICT",
+      "message": "이미 다른 지급 처리에 사용된 요청 ID입니다."
+    },
+    "reconciliationBeforeCleanup": [
+      "0",
+      "1",
+      "2",
+      "1800",
+      "350",
+      "1800",
+      "350",
+      "1800",
+      "350"
+    ],
+    "cleanup": {
+      "usersReset": 1,
+      "grantsDeleted": 0,
+      "compensationsDeleted": 1,
+      "ledgerRowsDeleted": 2,
+      "message": "선택한 사용자의 지갑과 지급 이력을 초기화했습니다."
+    }
+  }
+}

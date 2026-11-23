@@ -51,7 +51,7 @@ public class RewardGrantProcedure {
             case "NOT_AVAILABLE" -> new ClaimResponse(result, null, "현재 수령할 수 없는 이벤트입니다.");
             case "EVENT_NOT_FOUND" -> throw ApiException.notFound("이벤트를 찾을 수 없습니다.");
             case "REQUEST_ID_CONFLICT" -> throw ApiException.conflict(
-                    "이미 다른 사용자 또는 이벤트에 사용된 요청 ID입니다.");
+                    "이미 다른 지급 처리에 사용된 요청 ID입니다.");
             default -> throw new IllegalStateException("Unexpected grant procedure result: " + result);
         };
     }

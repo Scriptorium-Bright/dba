@@ -37,12 +37,13 @@ services:
       SPRING_FLYWAY_URL: jdbc:postgresql://db:5432/rewardp3db?currentSchema=reward
       SPRING_FLYWAY_USER: reward_migration
       SPRING_FLYWAY_PASSWORD: ${P3_DB_MIGRATION_PASSWORD:-p3_migration_local_only}
-      # 현재 끝 migration 번호를 사용한다. Flyway는 없는 target(예: 99)을 거부한다.
-      SPRING_FLYWAY_TARGET: ${P3_FLYWAY_TARGET:-11}
+      # P3 전용 DB까지 현재 검증 migration을 따라가도록 명시한다.
+      SPRING_FLYWAY_TARGET: ${P3_FLYWAY_TARGET:-16}
       APP_ALLOWED_ORIGIN: http://127.0.0.1:5175
       # P3 is local-only and loopback-bound; keep the requested wallet reset UI available for practice.
       APP_DEMO_WALLET_RESET_ENABLED: ${APP_DEMO_WALLET_RESET_ENABLED:-true}
-      APP_P3_COMPENSATION_ENABLED: ${APP_P3_COMPENSATION_ENABLED:-false}
+      # 로컬 루프백 실습에서만 CS 보상 API를 열어 procedure 권한을 검증한다.
+      APP_P3_COMPENSATION_ENABLED: ${APP_P3_COMPENSATION_ENABLED:-true}
     ports:
       # P2 API 8082의 데이터 경로와 포트를 공유하지 않는다.
       - "127.0.0.1:8182:8080"

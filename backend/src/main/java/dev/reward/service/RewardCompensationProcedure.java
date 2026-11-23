@@ -53,7 +53,9 @@ public class RewardCompensationProcedure {
             case "ALREADY_COMPENSATED" -> new CompensationResponse(
                     result, compensationId, "같은 장애 건에 대한 보상이 이미 기록되어 있습니다.");
             case "REQUEST_ID_CONFLICT" -> throw ApiException.conflict(
-                    "이미 다른 보상 내용에 사용된 요청 ID입니다.");
+                    "이미 다른 지급 처리에 사용된 요청 ID입니다.");
+            case "COMPENSATION_CONFLICT" -> throw ApiException.conflict(
+                    "같은 장애 대상에 다른 보상 내용이 이미 기록되어 있습니다.");
             default -> throw new IllegalStateException("Unexpected compensation procedure result: " + result);
         };
     }
