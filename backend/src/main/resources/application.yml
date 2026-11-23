@@ -37,3 +37,6 @@ app:
   demo-wallet-reset-enabled: ${APP_DEMO_WALLET_RESET_ENABLED:false}
   # CS 장애 보상 경로는 격리된 P3 로컬 환경에서만 명시적으로 켠다.
   p3-compensation-enabled: ${APP_P3_COMPENSATION_ENABLED:false}
+  # 진단용 인위 대기 endpoint는 전용 로컬 Compose profile에서만 등록한다.
+  latency-lab:
+    enabled: ${APP_LATENCY_LAB_ENABLED:false}

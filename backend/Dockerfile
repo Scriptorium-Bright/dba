@@ -3,6 +3,7 @@ WORKDIR /workspace
 COPY backend/pom.xml ./pom.xml
 COPY backend/src ./src
 COPY database/migrations ./src/main/resources/db/migration
+COPY database/p4-migrations ./src/main/resources/db/p4-migration
 RUN mvn -B -DskipTests package
 
 FROM eclipse-temurin:21-jre

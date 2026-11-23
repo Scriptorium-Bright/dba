@@ -1,0 +1,295 @@
+{
+  "generatedAtUtc": "2026-11-22T18:31:26.539158+00:00",
+  "database": "rewardlatencydb",
+  "postgresVersion": "17.12 (Debian 17.12-1.pgdg13+1)",
+  "runtimeTopology": {
+    "composeProject": "reward-latency",
+    "apiService": "api",
+    "databaseService": "db",
+    "apiLoopbackPort": "127.0.0.1:8382",
+    "databaseLoopbackPort": "127.0.0.1:55435",
+    "sharedComposeNetwork": "reward-latency_default",
+    "apiDatasource": "jdbc:postgresql://db:5432/rewardlatencydb",
+    "apiSessionIdentity": {
+      "database_name": "rewardlatencydb",
+      "server_version": "17.12 (Debian 17.12-1.pgdg13+1)",
+      "database_user": "reward_app",
+      "application_name": "reward-latency-api"
+    }
+  },
+  "fixture": {
+    "rows": 1000000,
+    "matchingRows": 2000,
+    "scanIndexes": 1
+  },
+  "measurement": {
+    "scope": "loopback synthetic scenarios; not production traffic",
+    "percentileMethod": "nearest-rank from client monotonic durations",
+    "percentileSampleCount": 100,
+    "p95Rank": 95,
+    "maximumRank": 100,
+    "poolRequests": "100 concurrent clients; Tomcat max threads configured 128; Hikari maximum 4; acquisition timeout 1500ms; each holder requests 2000ms",
+    "lockRequests": "25 rounds × four blocked API requests; one exact blocker chain per round",
+    "scanRequests": "100 requests at four-client concurrency before and after the index"
+  },
+  "scenarios": [
+    {
+      "scenario": "hikari-pool-wait",
+      "method": "GET",
+      "uri": "/api/diagnostics/hold-connection",
+      "requests": 100,
+      "maximumConcurrency": 100,
+      "percentileMethod": "nearest-rank client durations; local synthetic sample",
+      "percentileSampleCount": 100,
+      "statuses": {
+        "200": 4,
+        "503": 96
+      },
+      "clientDurationMs": {
+        "p50": 1632.449,
+        "p95": 1689.874,
+        "max": 2068.555
+      },
+      "httpServerRequestsMetric": {
+        "countDelta": 100.0,
+        "meanDurationMs": 1531.915
+      },
+      "hikari": {
+        "activePeak": 4.0,
+        "idleMinimum": 0.0,
+        "pendingPeak": 96.0,
+        "poolMaximum": 4.0,
+        "timedOutBorrowers": 96.0
+      },
+      "postgresSamples": {
+        "samples": 10,
+        "apiActiveClientSessionsPeak": 0,
+        "apiIdleClientSessionsPeak": 4,
+        "apiClientSessionsPeak": 4,
+        "parallelWorkerProcessesPeak": 0,
+        "lockWaitSamples": 0,
+        "samplesWithBlockedSessions": 0,
+        "scanQuerySamples": 0,
+        "observedWaitEvents": [
+          "Client/ClientRead"
+        ]
+      },
+      "wallElapsedSeconds": 2.077,
+      "nonSuccessResponseReasons": {
+        "connection_pool_acquisition_timeout": 96
+      }
+    },
+    {
+      "scenario": "postgres-row-lock-wait",
+      "method": "POST",
+      "uri": "/api/diagnostics/lock-probe",
+      "requests": 100,
+      "maximumConcurrency": 4,
+      "percentileMethod": "nearest-rank client durations; local synthetic sample",
+      "percentileSampleCount": 100,
+      "statuses": {
+        "200": 100
+      },
+      "clientDurationMs": {
+        "p50": 183.788,
+        "p95": 196.598,
+        "max": 203.518
+      },
+      "httpServerRequestsMetric": {
+        "countDelta": 100.0,
+        "meanDurationMs": 179.911
+      },
+      "hikari": {
+        "activePeak": 4.0,
+        "idleMinimum": 0.0,
+        "pendingPeak": 0.0,
+        "poolMaximum": 4.0,
+        "timedOutBorrowers": 0.0
+      },
+      "postgresSamples": {
+        "samples": 53,
+        "apiActiveClientSessionsPeak": 4,
+        "apiIdleClientSessionsPeak": 4,
+        "apiClientSessionsPeak": 4,
+        "parallelWorkerProcessesPeak": 0,
+        "lockWaitSamples": 24,
+        "samplesWithBlockedSessions": 24,
+        "scanQuerySamples": 0,
+        "observedWaitEvents": [
+          "Client/ClientRead",
+          "Lock/transactionid,Lock/tuple"
+        ]
+      },
+      "wallElapsedSeconds": 11.298,
+      "exactWaitEvidence": {
+        "rounds": 25,
+        "requestsWithObservedLock": 100,
+        "waiterToBlockerChainsVerified": 100,
+        "eachBlockerCommitConfirmed": true,
+        "firstRound": {
+          "round": 1,
+          "waiterCount": 4,
+          "blockedSessions": 4,
+          "exactChain": {
+            "waiterCount": 4,
+            "waiterPids": [
+              "176",
+              "184",
+              "185",
+              "186"
+            ],
+            "blockerPid": "279",
+            "waitEvents": "Lock/transactionid,Lock/tuple",
+            "waiterToBlockerPidChains": "176->184->279,184->279,185->184->279,186->184->279",
+            "source": "pg_stat_activity with recursive pg_blocking_pids() traversal"
+          },
+          "blockerRelease": {
+            "exitCode": 0,
+            "commandTag": "COMMIT"
+          }
+        },
+        "lastRound": {
+          "round": 25,
+          "waiterCount": 4,
+          "blockedSessions": 4,
+          "exactChain": {
+            "waiterCount": 4,
+            "waiterPids": [
+              "176",
+              "184",
+              "185",
+              "186"
+            ],
+            "blockerPid": "1535",
+            "waitEvents": "Lock/transactionid,Lock/tuple",
+            "waiterToBlockerPidChains": "176->184->1535,184->1535,185->184->1535,186->184->1535",
+            "source": "pg_stat_activity with recursive pg_blocking_pids() traversal"
+          },
+          "blockerRelease": {
+            "exitCode": 0,
+            "commandTag": "COMMIT"
+          }
+        }
+      }
+    },
+    {
+      "predicate": "marker LIKE '%needle%'",
+      "fixtureRows": 1000000,
+      "matchingRowsPerRequest": 2000,
+      "baseline": {
+        "scenario": "unindexed-sequential-scan",
+        "method": "GET",
+        "uri": "/api/diagnostics/sequential-scan",
+        "requests": 100,
+        "maximumConcurrency": 4,
+        "percentileMethod": "nearest-rank client durations; local synthetic sample",
+        "percentileSampleCount": 100,
+        "statuses": {
+          "200": 100
+        },
+        "clientDurationMs": {
+          "p50": 161.189,
+          "p95": 230.081,
+          "max": 318.432
+        },
+        "httpServerRequestsMetric": {
+          "countDelta": 100.0,
+          "meanDurationMs": 169.141
+        },
+        "hikari": {
+          "activePeak": 4.0,
+          "idleMinimum": 0.0,
+          "pendingPeak": 0.0,
+          "poolMaximum": 4.0,
+          "timedOutBorrowers": 0.0
+        },
+        "postgresSamples": {
+          "samples": 13,
+          "apiActiveClientSessionsPeak": 4,
+          "apiIdleClientSessionsPeak": 3,
+          "apiClientSessionsPeak": 4,
+          "parallelWorkerProcessesPeak": 7,
+          "lockWaitSamples": 0,
+          "samplesWithBlockedSessions": 0,
+          "scanQuerySamples": 13,
+          "observedWaitEvents": [
+            "Client/ClientRead",
+            "Client/ClientRead,IO/DsmAllocate,IPC/BgworkerShutdown",
+            "Client/ClientRead,IPC/ExecuteGather",
+            "IPC/BgworkerShutdown"
+          ]
+        },
+        "wallElapsedSeconds": 4.351,
+        "pgStatStatements": {
+          "queryId": "6549004634317090783",
+          "calls": 100,
+          "meanExecMs": 165.681,
+          "maxExecMs": 302.67,
+          "sharedBlocksHit": 735300,
+          "sharedBlocksRead": 0,
+          "rows": 100
+        }
+      },
+      "baselinePlan": "DO\n                                                              QUERY PLAN                                                               \n---------------------------------------------------------------------------------------------------------------------------------------\n Finalize Aggregate  (cost=13561.65..13561.66 rows=1 width=8) (actual time=35.136..37.277 rows=1 loops=1)\n   Buffers: shared hit=7353\n   ->  Gather  (cost=13561.44..13561.65 rows=2 width=8) (actual time=34.946..37.273 rows=3 loops=1)\n         Workers Planned: 2\n         Workers Launched: 2\n         Buffers: shared hit=7353\n         ->  Partial Aggregate  (cost=12561.44..12561.45 rows=1 width=8) (actual time=33.393..33.393 rows=1 loops=3)\n               Buffers: shared hit=7353\n               ->  Parallel Seq Scan on scan_probe  (cost=0.00..12561.33 rows=42 width=0) (actual time=0.017..33.360 rows=667 loops=3)\n                     Filter: (marker ~~ '%needle%'::text)\n                     Rows Removed by Filter: 332667\n                     Buffers: shared hit=7353\n Planning:\n   Buffers: shared hit=3\n Planning Time: 0.029 ms\n Execution Time: 37.289 ms\n(16 rows)\n\n",
+      "tuningAction": {
+        "index": "GIN (marker public.gin_trgm_ops)",
+        "indexSizeBytes": 32366592,
+        "indexCommandOutput": "DO\nCREATE EXTENSION\nBEGIN\nSET\nCREATE INDEX\nANALYZE\nCOMMIT\n  database_name  | index_count | index_size \n-----------------+-------------+------------\n rewardlatencydb |           2 | 31 MB\n(1 row)\n\n",
+        "writeCostMeasured": false,
+        "decision": "pg_trgm GIN targets the leading-wildcard LIKE predicate; this lab did not measure index write cost."
+      },
+      "tuned": {
+        "scenario": "gin-indexed-scan",
+        "method": "GET",
+        "uri": "/api/diagnostics/sequential-scan",
+        "requests": 100,
+        "maximumConcurrency": 4,
+        "percentileMethod": "nearest-rank client durations; local synthetic sample",
+        "percentileSampleCount": 100,
+        "statuses": {
+          "200": 100
+        },
+        "clientDurationMs": {
+          "p50": 10.892,
+          "p95": 18.687,
+          "max": 21.91
+        },
+        "httpServerRequestsMetric": {
+          "countDelta": 100.0,
+          "meanDurationMs": 7.456
+        },
+        "hikari": {
+          "activePeak": 0.0,
+          "idleMinimum": 4.0,
+          "pendingPeak": 0.0,
+          "poolMaximum": 4.0,
+          "timedOutBorrowers": 0.0
+        },
+        "postgresSamples": {
+          "samples": 2,
+          "apiActiveClientSessionsPeak": 1,
+          "apiIdleClientSessionsPeak": 4,
+          "apiClientSessionsPeak": 4,
+          "parallelWorkerProcessesPeak": 0,
+          "lockWaitSamples": 0,
+          "samplesWithBlockedSessions": 0,
+          "scanQuerySamples": 1,
+          "observedWaitEvents": [
+            "Client/ClientRead"
+          ]
+        },
+        "wallElapsedSeconds": 0.286,
+        "pgStatStatements": {
+          "queryId": "6549004634317090783",
+          "calls": 100,
+          "meanExecMs": 3.886,
+          "maxExecMs": 12.021,
+          "sharedBlocksHit": 201700,
+          "sharedBlocksRead": 0,
+          "rows": 100
+        }
+      },
+      "tunedPlan": "DO\n                                                                  QUERY PLAN                                                                   \n-----------------------------------------------------------------------------------------------------------------------------------------------\n Aggregate  (cost=451.27..451.28 rows=1 width=8) (actual time=3.001..3.002 rows=1 loops=1)\n   Buffers: shared hit=2017\n   ->  Bitmap Heap Scan on scan_probe  (cost=84.76..451.02 rows=100 width=0) (actual time=0.444..2.906 rows=2000 loops=1)\n         Recheck Cond: (marker ~~ '%needle%'::text)\n         Heap Blocks: exact=2000\n         Buffers: shared hit=2017\n         ->  Bitmap Index Scan on scan_probe_marker_trgm_idx  (cost=0.00..84.73 rows=100 width=0) (actual time=0.269..0.269 rows=2000 loops=1)\n               Index Cond: (marker ~~ '%needle%'::text)\n               Buffers: shared hit=17\n Planning:\n   Buffers: shared hit=15\n Planning Time: 0.189 ms\n Execution Time: 3.033 ms\n(13 rows)\n\n"
+    }
+  ]
+}

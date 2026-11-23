@@ -1,0 +1,56 @@
+# Separate local PostgreSQL/API stack for response-time cause isolation only.
+services:
+  db:
+    image: postgres:17.12
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=all
+    environment:
+      POSTGRES_DB: rewardlatencydb
+      POSTGRES_USER: reward_bootstrap
+      POSTGRES_PASSWORD: ${LATENCY_DB_BOOTSTRAP_PASSWORD:-latency_bootstrap_local_only}
+      DB_APP_PASSWORD: ${LATENCY_DB_APP_PASSWORD:-latency_app_local_only}
+      DB_MIGRATION_PASSWORD: ${LATENCY_DB_MIGRATION_PASSWORD:-latency_migration_local_only}
+      DB_OBSERVER_PASSWORD: ${LATENCY_DB_OBSERVER_PASSWORD:-latency_observer_local_only}
+      TZ: UTC
+    ports:
+      - "127.0.0.1:55435:5432"
+    volumes:
+      - reward_latency_pgdata:/var/lib/postgresql/data
+      - ./database/bootstrap/10-create-roles.sh:/docker-entrypoint-initdb.d/10-create-roles.sh:ro
+      - ./database/bootstrap/20-latency-monitor.sql:/docker-entrypoint-initdb.d/20-latency-monitor.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reward_bootstrap -d rewardlatencydb"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: latency-lab
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/rewardlatencydb?currentSchema=reward&escapeSyntaxCallMode=callIfNoReturn&ApplicationName=reward-latency-api
+      SPRING_DATASOURCE_USERNAME: reward_app
+      SPRING_DATASOURCE_PASSWORD: ${LATENCY_DB_APP_PASSWORD:-latency_app_local_only}
+      SPRING_FLYWAY_URL: jdbc:postgresql://db:5432/rewardlatencydb?currentSchema=reward
+      SPRING_FLYWAY_USER: reward_migration
+      SPRING_FLYWAY_PASSWORD: ${LATENCY_DB_MIGRATION_PASSWORD:-latency_migration_local_only}
+      APP_ALLOWED_ORIGIN: http://127.0.0.1:8382
+      APP_DEMO_WALLET_RESET_ENABLED: "false"
+      APP_P3_COMPENSATION_ENABLED: "false"
+      APP_LATENCY_LAB_ENABLED: "true"
+    ports:
+      - "127.0.0.1:8382:8080"
+
+volumes:
+  reward_latency_pgdata:
+    name: reward_latency_pgdata

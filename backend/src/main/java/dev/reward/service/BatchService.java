@@ -45,6 +45,8 @@ public class BatchService {
         this.transaction = new TransactionTemplate(transactionManager);
         // 한 사용자별 별도 커밋을 강제해 상위 호출자가 있어도 전체 배치로 묶이지 않게 한다.
         this.transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        // 지급 procedure는 advisory/unique lock 대기 뒤 새 문장의 snapshot으로 승자 행을 읽는다.
+        this.transaction.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
     }
 
     /** 수동/스케줄러 진입점. DB 세션 락을 잡은 뒤 사용자 단위로 독립 커밋한다. */

@@ -29,8 +29,11 @@ BLOCKER_APP = "p5_blocker_a"
 WAITER_APP = "p5_waiter_b"
 
 
-def psql_args(application: str, user: str, sql: str | None = None) -> list[str]:
+def psql_args(
+    application: str, user: str, sql: str | None = None, *, quiet: bool = True
+) -> list[str]:
     """Build a psql command inside the isolated database container."""
+    quiet_args = ["-q"] if quiet else []
     args = [
         DOCKER,
         "exec",
@@ -40,7 +43,7 @@ def psql_args(application: str, user: str, sql: str | None = None) -> list[str]:
         DB_CONTAINER,
         PSQL,
         "-X",
-        "-q",
+        *quiet_args,
         "-A",
         "-t",
         "-F",
@@ -81,7 +84,8 @@ def run_sql(application: str, user: str, sql: str) -> str:
 def start_session(application: str, user: str) -> subprocess.Popen[str]:
     """Open an interactive psql session so a transaction can remain observable."""
     return subprocess.Popen(
-        psql_args(application, user),
+        # Keep command tags visible so the incident action can be verified, not inferred.
+        psql_args(application, user, quiet=False),
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -135,20 +139,45 @@ def wait_for_session(application: str, predicate, session: subprocess.Popen[str]
 
 
 def finish_session(
-    session: subprocess.Popen[str] | None, final_sql: str
-) -> tuple[str, str] | None:
-    """End a psql transaction and close its connection cleanly."""
-    if session is None or session.poll() is not None:
-        return None
-    if session.stdin is None:
-        raise RuntimeError("psql session stdin is unavailable")
-    session.stdin.write(final_sql.rstrip() + "\n\\q\n")
-    session.stdin.flush()
+    session: subprocess.Popen[str] | None,
+    final_sql: str,
+    expected_command_tag: str | None = None,
+) -> tuple[str, str]:
+    """Close a psql session and verify process status plus any required command tag."""
+    if session is None:
+        raise RuntimeError("cannot verify completion of a missing psql session")
+    if session.poll() is None:
+        if session.stdin is None:
+            raise RuntimeError("psql session stdin is unavailable")
+        try:
+            if final_sql:
+                session.stdin.write(final_sql.rstrip() + "\n")
+                session.stdin.flush()
+            session.stdin.write("\\q\n")
+            session.stdin.flush()
+        except (BrokenPipeError, ValueError):
+            # Drain output below; a dead psql session must fail the exit/tag checks.
+            pass
     try:
-        return session.communicate(timeout=10)
+        stdout, stderr = session.communicate(timeout=10)
     except subprocess.TimeoutExpired:
         session.terminate()
-        return session.communicate(timeout=5)
+        stdout, stderr = session.communicate(timeout=5)
+
+    return_code = session.returncode
+    if return_code != 0:
+        raise RuntimeError(
+            f"psql session exited with status {return_code}; "
+            f"stdout={stdout!r}; stderr={stderr!r}"
+        )
+    if expected_command_tag is not None:
+        command_tags = {line.strip() for line in stdout.splitlines()}
+        if expected_command_tag not in command_tags:
+            raise RuntimeError(
+                f"expected psql command tag {expected_command_tag!r}; "
+                f"exit={return_code}; stdout={stdout!r}; stderr={stderr!r}"
+            )
+    return stdout, stderr
 
 
 def incident_snapshot() -> str:
@@ -176,6 +205,45 @@ def incident_snapshot() -> str:
           AND waiter.application_name = '{WAITER_APP}'
         """,
     )
+
+
+def verify_incident_blocking_chain(
+    chain: str, blocker_state: list[str], waiter_state: list[str]
+) -> dict[str, str]:
+    """Require pg_blocking_pids() to connect the exact sessions from this run."""
+    fields = chain.split("|")
+    if len(fields) != 12:
+        raise RuntimeError(f"unexpected blocker-chain column count: {fields!r}")
+    expected = {
+        "waiter_pid": waiter_state[0],
+        "waiter_application": WAITER_APP,
+        "waiter_state": "active",
+        "wait_event_type": "Lock",
+        "wait_event": "transactionid",
+        "blocker_pid": blocker_state[0],
+        "blocker_application": BLOCKER_APP,
+        "blocker_state": "idle in transaction",
+    }
+    observed = {
+        "waiter_pid": fields[1],
+        "waiter_application": fields[2],
+        "waiter_state": fields[3],
+        "wait_event_type": fields[4],
+        "wait_event": fields[5],
+        "blocker_pid": fields[6],
+        "blocker_application": fields[7],
+        "blocker_state": fields[8],
+    }
+    if observed != expected:
+        raise RuntimeError(
+            f"blocker chain is not the exact A→B Lock/transactionid pair: "
+            f"expected={expected}, observed={observed}, raw={chain!r}"
+        )
+    if "UPDATE p5_ops.lock_lab SET balance = balance + 1 WHERE id = 1" not in fields[11]:
+        raise RuntimeError(f"waiter PID is not running the expected UPDATE: {fields[11]!r}")
+    if "SELECT id FROM p5_ops.lock_lab WHERE id = 1 FOR UPDATE" not in fields[10]:
+        raise RuntimeError(f"blocker PID is not holding the expected row lock: {fields[10]!r}")
+    return observed
 
 
 def main() -> int:
@@ -217,14 +285,15 @@ def main() -> int:
         print(f"blocker_session pid={blocker_state[0]} state={blocker_state[1]} xact_age_s={blocker_state[4]}")
 
         waiter = start_session(WAITER_APP, MIGRATION_USER)
-        waiter_started = time.monotonic()
+        # This client timer includes send/execution and polling; it is not pure DB lock time.
+        waiter_request_started = time.monotonic()
         send_sql(
             waiter,
             "UPDATE p5_ops.lock_lab SET balance = balance + 1 WHERE id = 1;",
         )
         waiter_state = wait_for_session(
             WAITER_APP,
-            lambda row: row[2] == "Lock",
+            lambda row: row[2] == "Lock" and row[3] == "transactionid",
             waiter,
         )
         print(
@@ -235,7 +304,9 @@ def main() -> int:
         chain = incident_snapshot()
         if not chain:
             raise RuntimeError("observer query did not return the expected blocker chain")
+        verified_chain = verify_incident_blocking_chain(chain, blocker_state, waiter_state)
         print(f"blocker_chain={chain}")
+        print(f"blocker_chain_verified={verified_chain}")
 
         reader_started = time.monotonic()
         reader_value = run_sql(
@@ -251,8 +322,12 @@ def main() -> int:
         if reader_value != str(BASELINE_BALANCE):
             raise RuntimeError(f"concurrent SELECT saw unexpected committed value: {reader_value}")
 
-        blocker_ended = datetime.now(timezone.utc)
-        finish_session(blocker, "COMMIT;")
+        blocker_commit_requested = datetime.now(timezone.utc)
+        blocker_output, blocker_stderr = finish_session(
+            blocker, "COMMIT;", expected_command_tag="COMMIT"
+        )
+        # This is the client confirmation time after exit 0 and the COMMIT tag, not DB commit time.
+        blocker_commit_confirmed = datetime.now(timezone.utc)
         blocker_released = True
         blocker = None
 
@@ -261,8 +336,10 @@ def main() -> int:
             lambda row: row[1] == "idle",
             waiter,
         )
-        waiter_elapsed = time.monotonic() - waiter_started
-        waiter_output = finish_session(waiter, "")
+        client_request_to_idle_observation = time.monotonic() - waiter_request_started
+        waiter_output, waiter_stderr = finish_session(
+            waiter, "", expected_command_tag="UPDATE 1"
+        )
         waiter = None
         after = int(
             run_sql(
@@ -274,17 +351,31 @@ def main() -> int:
         if after != BASELINE_BALANCE + 1:
             raise RuntimeError(f"waiter result not committed exactly once; balance={after}")
 
-        print(f"blocker_released_utc={blocker_ended.isoformat()} action=COMMIT")
+        print(
+            f"blocker_commit_requested_client_utc={blocker_commit_requested.isoformat()} "
+            f"blocker_commit_confirmed_client_utc={blocker_commit_confirmed.isoformat()} "
+            "action=COMMIT "
+            f"psql_exit=0 command_tag=COMMIT output={blocker_output!r} "
+            f"stderr={blocker_stderr!r}"
+        )
         print(
             f"waiter_recovered pid={waiter_state[0]} state={waiter_state[1]} "
-            f"elapsed_s={waiter_elapsed:.3f} psql_output={waiter_output!r}"
+            "timing=client_request_to_idle_observation "
+            f"elapsed_s={client_request_to_idle_observation:.3f} "
+            "includes_send_execution_and_polling=true pure_db_lock_duration=false "
+            f"psql_exit=0 "
+            f"command_tag=UPDATE 1 psql_output={waiter_output!r} "
+            f"stderr={waiter_stderr!r}"
         )
         print(f"balance_before={before} balance_after_waiter_commit={after}")
         completed = True
     finally:
         # Release any held row lock first so the waiter can finish before fixture cleanup.
         if blocker is not None:
-            finish_session(blocker, "ROLLBACK;")
+            try:
+                finish_session(blocker, "ROLLBACK;")
+            except RuntimeError as error:
+                print(f"cleanup_blocker_release_error={error}")
         if waiter is not None:
             if not blocker_released:
                 try:
@@ -292,7 +383,10 @@ def main() -> int:
                 except (RuntimeError, TimeoutError):
                     waiter.terminate()
                     waiter.communicate(timeout=5)
-            finish_session(waiter, "")
+            try:
+                finish_session(waiter, "")
+            except RuntimeError as error:
+                print(f"cleanup_waiter_close_error={error}")
         if before == BASELINE_BALANCE:
             run_sql(
                 "p5_fixture_restore",
